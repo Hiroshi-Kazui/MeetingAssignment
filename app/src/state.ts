@@ -7,7 +7,7 @@ import { idbLoad, idbSave } from "./db";
 import { loadDataJson, saveDataJson } from "./platform";
 import { memberHasRole } from "./logic/priority";
 
-/** 既定ロール・ロールグループ・優先度グループ（§4.2 / §11。S3・S4 で変更可） */
+/** 既定ロール・ロールグループ・割当関連グループ（§4.2 / §11。S3・S4 で変更可） */
 export function defaultData(): AppData {
   return {
     version: 1,

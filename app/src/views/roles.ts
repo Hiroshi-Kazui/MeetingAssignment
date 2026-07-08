@@ -52,7 +52,7 @@ export function rolesView(el: HTMLElement, ctx: Ctx): void {
       <div class="toolbar"><span class="spacer"></span>
         <button class="btn btn-primary" id="add-role">＋ ロールを追加</button></div>
       <div class="table-wrap"><table>
-        <thead><tr><th>名称</th><th>種別</th><th>優先度グループ</th><th>保持者数</th><th></th></tr></thead>
+        <thead><tr><th>名称</th><th>種別</th><th>割当関連グループ</th><th>保持者数</th><th></th></tr></thead>
         <tbody>${roleRows}</tbody>
       </table></div>
       <h2>ロールグループ（成員への一括付与用）</h2>

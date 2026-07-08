@@ -1,4 +1,4 @@
-/** S4 優先度グループ設定 — 要件定義 §4.2 / §7 S4 */
+/** S4 割当関連グループ設定 — 要件定義 §4.2 / §7 S4 */
 import type { PriorityGroup } from "../models";
 import { byId, newId } from "../models";
 import type { Ctx } from "../ui/router";
@@ -34,11 +34,11 @@ export function priorityGroupsView(el: HTMLElement, ctx: Ctx): void {
       d.roles.filter((r) => !grouped.has(r.id)).map((r) => esc(r.name)).join("、") || "（なし）";
 
     el.innerHTML = `
-      <h1>優先度グループ設定</h1>
+      <h1>割当関連グループ設定</h1>
       <p class="page-desc">複数のロールの履歴を<strong>合算</strong>して「前回いつ担当したか」を判定するための束です。例: 宝の話（part1）と宝石（part2）は同じ扱いにする。</p>
-      <div class="notice">同じロールを複数の優先度グループに入れられます。候補順では、そのロールを含む全グループの履歴を合算します。</div>
+      <div class="notice">同じロールを複数の割当関連グループに入れられます。候補順では、そのロールを含む全グループの履歴を合算します。</div>
       <div class="toolbar"><span class="spacer"></span>
-        <button class="btn btn-primary" id="add">＋ 優先度グループを追加</button></div>
+        <button class="btn btn-primary" id="add">＋ 割当関連グループを追加</button></div>
       <div class="table-wrap"><table>
         <thead><tr><th>名称</th><th>含まれるロール（履歴を合算）</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
@@ -76,7 +76,7 @@ export function priorityGroupsView(el: HTMLElement, ctx: Ctx): void {
   function openEdit(g: PriorityGroup | null): void {
     editing = g;
     const dlg = el.querySelector<HTMLDialogElement>("#edit-dialog")!;
-    el.querySelector("#dlg-title")!.textContent = g ? `${g.name} を編集` : "優先度グループを追加";
+    el.querySelector("#dlg-title")!.textContent = g ? `${g.name} を編集` : "割当関連グループを追加";
     (el.querySelector("#e-name") as HTMLInputElement).value = g?.name ?? "";
     el.querySelector("#e-roles")!.innerHTML = d.roles
       .map(

@@ -10,7 +10,7 @@
 | `index.html` | S1 ホーム（集会日一覧） |
 | `members.html` | S2 成員マスター管理 |
 | `roles.html` | S3 ロール／ロールグループ設定 |
-| `priority-groups.html` | S4 優先度グループ設定 |
+| `priority-groups.html` | S4 割当関連グループ設定 |
 | `import-excel.html` | S5 Excel 取り込み（自動検出＋レビュー） |
 | `import-history.html` | S6 履歴インポート（過去 PDF・名寄せ） |
 | `assign.html` | S7 割り当て（中核画面。`?date=YYYY-MM-DD` で対象日指定） |

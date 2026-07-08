@@ -22,7 +22,7 @@ export function roleHolders(data: AppData, roleId: string): Member[] {
   return data.members.filter((m) => memberHasRole(data, m, roleId));
 }
 
-/** 履歴の判定単位: 優先度グループに属すればグループ内全ロールを合算（重複所属可） */
+/** 履歴の判定単位: 割当関連グループに属すればグループ内全ロールを合算（重複所属可） */
 export function historyRoleIds(data: AppData, roleId: string): string[] {
   const groupedRoleIds = data.priorityGroups
     .filter((g) => g.roleIds.includes(roleId))

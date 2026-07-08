@@ -8,7 +8,7 @@
 
 // ---------- ロール（Role） ----------
 // slotType: プログラム上の役割種別（表示用）
-// priorityGroupId: 属する優先度グループ（履歴合算単位）。null = ロール単体。
+// priorityGroupId: 属する割当関連グループ（履歴合算単位）。null = ロール単体。
 const ROLES = [
   { id: "r_prayer",        name: "祈り",               slotType: "祈り",          priorityGroupId: null },
   { id: "r_chairman",      name: "司会者（集会全体）", slotType: "司会",          priorityGroupId: null },
@@ -33,7 +33,7 @@ const ROLE_GROUPS = [
     roleIds: ["r_student"] },
 ];
 
-// ---------- 優先度グループ（PriorityGroup）: 履歴合算単位 ----------
+// ---------- 割当関連グループ（PriorityGroup）: 履歴合算単位 ----------
 const PRIORITY_GROUPS = [
   { id: "pg_treasures", name: "宝 part1 + part2",        roleIds: ["r_treasures", "r_gems"] },
   { id: "pg_living",    name: "生活の討議・話（part7系）", roleIds: ["r_living"] },

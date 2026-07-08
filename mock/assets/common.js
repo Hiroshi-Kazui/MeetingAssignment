@@ -16,7 +16,7 @@ const NAV = [
   { section: "マスター管理" },
   { href: "members.html",         label: "成員マスター",         id: "members" },
   { href: "roles.html",           label: "ロール設定",           id: "roles" },
-  { href: "priority-groups.html", label: "優先度グループ",       id: "priority-groups" },
+  { href: "priority-groups.html", label: "割当関連グループ",       id: "priority-groups" },
   { section: "データ管理" },
   { href: "import-history.html",  label: "履歴インポート",       id: "import-history" },
   { href: "settings.html",        label: "バックアップ・設定",   id: "settings" },
@@ -66,7 +66,7 @@ function roleHolders(roleId) {
 }
 
 // ---------- 優先度計算(§4.6) ----------
-// 履歴の判定単位: ロールが優先度グループに属すればグループ内全ロールの履歴を合算
+// 履歴の判定単位: ロールが割当関連グループに属すればグループ内全ロールの履歴を合算
 function historyRoleIds(roleId) {
   const role = byId(ROLES, roleId);
   if (role?.priorityGroupId) {
