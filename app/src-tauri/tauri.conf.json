@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "app",
+  "productName": "週日の集会割当",
   "version": "0.1.0",
   "identifier": "jp.tokuyama.meeting-assign",
   "build": {
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "app",
+        "title": "週日の集会割当",
         "width": 1100,
         "height": 720,
         "minWidth": 1040
