@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S5 Excel 取り込み — 週日の集会 割り当てツール</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+  <h1>Excel 取り込み（自動検出＋レビュー）</h1>
+  <p class="page-desc">集会プログラムの Excel を読み込み、各行の種類を自動判定します。判定結果を確認・修正してから確定してください。修正内容は記憶され、次回から自動で適用されます。（S5 / 要件定義 §4.3）</p>
+
+  <div class="wizard-steps">
+    <span class="step current" id="step1-tab">① ファイル選択</span>
+    <span class="step" id="step2-tab">② 内容の確認（レビュー）</span>
+  </div>
+
+  <!-- ========== STEP 1 ========== -->
+  <section id="step1">
+    <div class="panel">
+      <p style="margin-top:0">集会プログラムの Excel ファイル（.xlsx）を選択してください。1シートに2週分が入っている形式に対応しています。</p>
+      <button class="btn btn-primary" id="pick">ファイルを選択…</button>
+      <span id="picked" style="margin-left:10px; font-size:14px; color:var(--muted)"></span>
+    </div>
+
+    <div id="sheet-list" style="display:none">
+      <h2>検出された集会日</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>シート</th><th>集会日</th><th>状態</th></tr></thead>
+          <tbody>
+            <tr><td rowspan="2">09-04</td><td>2026年9月8日（火）</td><td><span class="badge badge-green">新規</span></td></tr>
+            <tr><td>2026年9月15日（火）</td><td><span class="badge badge-green">新規</span></td></tr>
+            <tr><td rowspan="2">09-21</td><td>2026年9月22日（火）</td><td><span class="badge badge-green">新規</span></td></tr>
+            <tr class="row-warn"><td>2026年8月25日（火）</td><td><span class="badge badge-amber">取込済み — 確定すると上書き</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="toolbar" style="margin-top:14px">
+        <span class="spacer"></span>
+        <button class="btn btn-primary" id="to-step2">内容を確認する →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== STEP 2 ========== -->
+  <section id="step2" style="display:none">
+    <div class="notice">黄色の行は自動判定できなかった「未分類」です。種類を選ぶか「無視」を選択してください。ここでの修正は記憶され、次回から自動で適用されます。</div>
+
+    <h2>2026年9月8日（火）</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>元の内容（C列）</th><th>種類（自動判定）</th><th>割り当て枠</th><th>状態</th></tr>
+        </thead>
+        <tbody id="review-rows"></tbody>
+      </table>
+    </div>
+
+    <h2 style="margin-top:24px">2026年9月22日（火） <span class="badge badge-purple">巡回訪問週</span></h2>
+    <div class="notice">C列に「奉仕の話」を検出したため、この日は<strong>巡回訪問週</strong>として取り込まれます（会衆聖書研究の代わりに巡回監督の話。割り当てはありません）。誤検出の場合は、種類を「会衆聖書研究（part8）」に選び直してください。</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>元の内容（C列）</th><th>種類（自動判定）</th><th>割り当て枠</th><th>状態</th></tr>
+        </thead>
+        <tbody id="review-rows-circuit"></tbody>
+      </table>
+    </div>
+
+    <h2 style="margin-top:24px">2026年9月15日（火）ほか</h2>
+    <div class="panel" style="color:var(--muted); font-size:14px">
+      （モックのため省略 — 実装では取り込んだ全集会日を同様に表示）
+    </div>
+
+    <div class="toolbar" style="margin-top:14px">
+      <button class="btn" id="back">← ファイル選択に戻る</button>
+      <span class="spacer"></span>
+      <button class="btn btn-primary" id="confirm">確定して取り込む</button>
+    </div>
+    <div id="done" class="notice notice-ok" style="display:none">
+      取り込みました。<a href="index.html">ホーム</a>で確認できます。（モックのためデータは変わりません）
+    </div>
+  </section>
+</main>
+
+<script src="assets/data.js"></script>
+<script src="assets/common.js"></script>
+<script>
+renderSidebar("import-excel");
+
+// ---- STEP1: ファイル選択（モックでは固定ファイル名を表示） ----
+document.getElementById("pick").onclick = () => {
+  document.getElementById("picked").innerHTML = '<code class="path">2026年9-10月.xlsx</code> を選択しました';
+  document.getElementById("sheet-list").style.display = "";
+};
+
+document.getElementById("to-step2").onclick = () => {
+  document.getElementById("step1").style.display = "none";
+  document.getElementById("step2").style.display = "";
+  document.getElementById("step1-tab").classList.remove("current");
+  document.getElementById("step2-tab").classList.add("current");
+};
+document.getElementById("back").onclick = () => {
+  document.getElementById("step2").style.display = "none";
+  document.getElementById("step1").style.display = "";
+  document.getElementById("step2-tab").classList.remove("current");
+  document.getElementById("step1-tab").classList.add("current");
+};
+
+// ---- STEP2: レビュー行（自動判定の結果サンプル） ----
+// type: 判定された種類 / slots: 枠 / state: ok | unknown | skip
+const REVIEW_ROWS = [
+  { src: "エホバに近づきなさい（歌12番）と開会のことば", type: "司会・開会", slots: "司会 1枠", state: "ok" },
+  { src: "1. 「エホバは謙遜な人を高く評価される」", type: "宝の話（part1）", slots: "話 1枠", state: "ok" },
+  { src: "2. 宝石を探し出す", type: "宝石（part2）", slots: "話 1枠", state: "ok" },
+  { src: "3. 聖書朗読（サムエル第一 15:10-23）", type: "聖書朗読（part3）", slots: "生徒 1枠", state: "ok" },
+  { src: "4. 会話を始める", type: "実演（part4）", slots: "生徒 + 相手 2枠", state: "ok" },
+  { src: "5. 関心を育てる", type: "実演（part5）", slots: "生徒 + 相手 2枠", state: "ok" },
+  { src: "6. 話：忠実であるとは", type: "実演／話（part6）", slots: "生徒 1枠（相手省略）", state: "ok", omit: true },
+  { src: "7. 地域の必要", type: "生活の話・討議（part7）", slots: "話 1枠", state: "ok" },
+  { src: "8. 会衆聖書研究", type: "会衆聖書研究（part8）", slots: "司会 + 朗読 2枠", state: "ok" },
+  { src: "特別キャンペーンのお知らせ", type: "", slots: "", state: "unknown" },
+  { src: "祈り（歌138番）", type: "閉会の祈り", slots: "祈り 1枠", state: "ok" },
+];
+
+const TYPE_OPTIONS = [
+  "司会・開会", "宝の話（part1）", "宝石（part2）", "聖書朗読（part3）",
+  "実演（part4）", "実演（part5）", "実演／話（part6）",
+  "生活の話・討議（part7）", "会衆聖書研究（part8）",
+  "奉仕の話（巡回監督・割当対象外）",  // ← 案B: これを選ぶとその日が「巡回訪問週」になる
+  "閉会の祈り", "（割当対象外・無視）",
+];
+
+// 巡回訪問週のレビュー例: part8 が「奉仕の話」として検出され、割当対象外になる
+const REVIEW_ROWS_CIRCUIT = [
+  { src: "エホバを賛美せよ（歌159番）と開会のことば", type: "司会・開会", slots: "司会 1枠", state: "ok" },
+  { src: "1. 「王国の良いたよりを伝え続ける」", type: "宝の話（part1）", slots: "話 1枠", state: "ok" },
+  { ellipsis: "（part2〜7 は通常週と同様のため中略）" },
+  { src: "8. 奉仕の話「エホバの組織と共に前進する」", type: "奉仕の話（巡回監督・割当対象外）", slots: "なし（巡回監督が担当）", state: "noassign" },
+  { src: "祈り（歌92番）", type: "閉会の祈り", slots: "祈り 1枠", state: "ok" },
+];
+
+function renderReview(rows, tbodyId) {
+  document.getElementById(tbodyId).innerHTML = rows.map((r) => {
+    if (r.ellipsis) {
+      return `<tr><td colspan="4" style="color:var(--muted); font-size:13px">${r.ellipsis}</td></tr>`;
+    }
+    const opts = TYPE_OPTIONS.map(
+      (t) => `<option ${t === r.type ? "selected" : ""}>${t}</option>`
+    ).join("");
+    const stateBadge =
+      r.state === "unknown"
+        ? '<span class="badge badge-amber">未分類 — 選択してください</span>'
+        : r.state === "noassign"
+        ? '<span class="badge badge-purple">割当対象外（巡回訪問週）</span>'
+        : '<span class="badge badge-green">自動判定</span>';
+    return `<tr class="${r.state === "unknown" ? "row-warn" : ""}">
+      <td style="font-size:13px">${r.src}</td>
+      <td><select>${r.state === "unknown" ? "<option selected>— 選択 —</option>" : ""}${opts}</select></td>
+      <td style="font-size:13px">${r.slots}${r.omit ? ' <label style="display:inline"><input type="checkbox" checked> 相手役を省略</label>' : ""}</td>
+      <td>${stateBadge}</td>
+    </tr>`;
+  }).join("");
+}
+renderReview(REVIEW_ROWS, "review-rows");
+renderReview(REVIEW_ROWS_CIRCUIT, "review-rows-circuit");
+
+document.getElementById("confirm").onclick = () => {
+  document.getElementById("done").style.display = "";
+};
+</script>
+</body>
+</html>

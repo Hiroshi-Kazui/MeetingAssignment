@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S4 優先度グループ設定 — 週日の集会 割り当てツール</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+  <h1>優先度グループ設定</h1>
+  <p class="page-desc">複数のロールの履歴を<strong>合算</strong>して「前回いつ担当したか」を判定するための束です。例: 宝の話（part1）と宝石（part2）は同じ扱いにする。（S4 / 要件定義 §4.2, §4.6）</p>
+
+  <div class="notice">1つのロールが入れる優先度グループは1つまでです。グループに入っていないロールは、そのロール単独で履歴を判定します。</div>
+
+  <div class="toolbar">
+    <span class="spacer"></span>
+    <button class="btn btn-primary" id="add">＋ 優先度グループを追加</button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>名称</th><th>含まれるロール（履歴を合算）</th><th></th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <h2>グループに属さないロール（ロール単体で履歴判定）</h2>
+  <div class="panel" id="ungrouped" style="font-size:14px"></div>
+</main>
+
+<dialog id="edit-dialog">
+  <h3 id="dlg-title">優先度グループを追加</h3>
+  <div class="field">
+    <label>名称</label>
+    <input type="text" id="e-name" style="width:100%" placeholder="例: 宝 part1 + part2">
+  </div>
+  <div class="field">
+    <label>含めるロール</label>
+    <div class="checks" id="e-roles"></div>
+  </div>
+  <p id="e-warn" class="notice" style="display:none"></p>
+  <div class="dialog-actions">
+    <button class="btn" id="e-cancel">キャンセル</button>
+    <button class="btn btn-primary" id="e-save">保存</button>
+  </div>
+</dialog>
+
+<script src="assets/data.js"></script>
+<script src="assets/common.js"></script>
+<script>
+renderSidebar("priority-groups");
+
+let editing = null;
+
+function render() {
+  document.getElementById("rows").innerHTML = PRIORITY_GROUPS.map((g) => `
+    <tr>
+      <td>${g.name}</td>
+      <td style="font-size:13px">${g.roleIds.map((id) => byId(ROLES, id)?.name).join("、")}</td>
+      <td>
+        <button class="btn btn-sm" onclick="openEdit('${g.id}')">編集</button>
+        <button class="btn btn-sm btn-danger" onclick="del('${g.id}')">削除</button>
+      </td>
+    </tr>`).join("");
+
+  const grouped = new Set(PRIORITY_GROUPS.flatMap((g) => g.roleIds));
+  document.getElementById("ungrouped").textContent =
+    ROLES.filter((r) => !grouped.has(r.id)).map((r) => r.name).join("、") || "（なし）";
+}
+
+const dlg = document.getElementById("edit-dialog");
+function openEdit(id) {
+  editing = id ? byId(PRIORITY_GROUPS, id) : null;
+  document.getElementById("dlg-title").textContent = editing ? `${editing.name} を編集` : "優先度グループを追加";
+  document.getElementById("e-name").value = editing?.name ?? "";
+  document.getElementById("e-roles").innerHTML = ROLES.map((r) => {
+    const owner = PRIORITY_GROUPS.find((g) => g.roleIds.includes(r.id) && g.id !== editing?.id);
+    return `<label title="${owner ? `既に「${owner.name}」に所属` : ""}">
+      <input type="checkbox" value="${r.id}" data-owner="${owner?.name ?? ""}"
+        ${editing?.roleIds.includes(r.id) ? "checked" : ""}> ${r.name}${owner ? `（→ ${owner.name}）` : ""}</label>`;
+  }).join("");
+  document.getElementById("e-warn").style.display = "none";
+  dlg.showModal();
+}
+function del(id) {
+  if (confirm("このグループを削除しますか？（各ロールはロール単体の履歴判定に戻ります）")) {
+    PRIORITY_GROUPS.splice(PRIORITY_GROUPS.findIndex((g) => g.id === id), 1);
+    render();
+  }
+}
+document.getElementById("add").onclick = () => openEdit(null);
+document.getElementById("e-cancel").onclick = () => dlg.close();
+document.getElementById("e-save").onclick = () => {
+  const name = document.getElementById("e-name").value.trim();
+  if (!name) { alert("名称を入力してください"); return; }
+  const checked = [...document.querySelectorAll("#e-roles input:checked")];
+  // 二重所属の警告（§7 S4: 1ロール1グループ）
+  const conflicts = checked.filter((c) => c.dataset.owner).map((c) => c.dataset.owner);
+  if (conflicts.length) {
+    const w = document.getElementById("e-warn");
+    w.style.display = "";
+    w.textContent = `選択したロールの一部は既に別のグループ（${[...new Set(conflicts)].join("、")}）に所属しています。先にそちらから外してください。`;
+    return;
+  }
+  const rec = editing ?? { id: "pg_new" + PRIORITY_GROUPS.length };
+  rec.name = name;
+  rec.roleIds = checked.map((c) => c.value);
+  if (!editing) PRIORITY_GROUPS.push(rec);
+  dlg.close();
+  render();
+};
+
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S9 バックアップ・設定 — 週日の集会 割り当てツール</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+  <h1>バックアップ・設定</h1>
+  <p class="page-desc">データは自動で二重保存されています（アプリ内 + data.json）。ここでは手動バックアップの書き出しと復元ができます。（S9 / 要件定義 §3）</p>
+
+  <h2>保存状態</h2>
+  <div class="panel">
+    <table style="border:none">
+      <tr><td style="border:none; width:220px; color:var(--muted)">最終自動保存</td><td style="border:none">2026年7月6日 21:14（アプリ内 / data.json とも成功）</td></tr>
+      <tr><td style="border:none; color:var(--muted)">データファイルの場所</td><td style="border:none"><code class="path">C:\Apps\週日の集会割当\data.json</code></td></tr>
+      <tr><td style="border:none; color:var(--muted)">PC の引っ越し</td><td style="border:none" class="page-desc" >アプリのフォルダ（実行ファイル + data.json）をそのままコピーするだけで移行できます。</td></tr>
+    </table>
+  </div>
+
+  <h2>手動バックアップ</h2>
+  <div class="panel">
+    <p style="margin-top:0; font-size:14px">成員・ロール・履歴・割り当てなど、すべてのデータを1つの JSON ファイルに書き出します。</p>
+    <button class="btn btn-primary" id="backup">バックアップを書き出す</button>
+    <span id="backup-done" style="margin-left:10px; font-size:14px; color:#1a7f37; display:none">✓ 書き出しました</span>
+  </div>
+
+  <h2>バックアップから復元</h2>
+  <div class="panel">
+    <p style="margin-top:0; font-size:14px">書き出した JSON ファイルを選んで、データ全体を置き換えます。</p>
+    <div class="notice">⚠ 復元すると、<strong>現在のデータはすべてバックアップの内容に置き換わります</strong>。実行前に確認ダイアログが表示されます。</div>
+    <button class="btn btn-danger" id="restore">バックアップファイルを選んで復元…</button>
+  </div>
+</main>
+
+<dialog id="restore-dialog">
+  <h3>復元しますか？</h3>
+  <p style="font-size:14px">
+    選択したファイル: <code class="path">backup_2026-07-01.json</code><br><br>
+    現在のデータ（成員 14名・集会 8回・履歴 40件）は、このバックアップの内容に<strong>すべて置き換わります</strong>。この操作は取り消せません。
+  </p>
+  <div class="dialog-actions">
+    <button class="btn" id="restore-cancel">キャンセル</button>
+    <button class="btn btn-danger" id="restore-ok">復元する</button>
+  </div>
+</dialog>
+
+<script src="assets/data.js"></script>
+<script src="assets/common.js"></script>
+<script>
+renderSidebar("settings");
+
+// バックアップ: 全データを JSON としてダウンロード（実装でもほぼ同じ処理を流用可能）
+document.getElementById("backup").onclick = () => {
+  const payload = {
+    version: 1,
+    exportedAt: "2026-07-06T21:14:00+09:00", // 実装では現在時刻
+    members: MEMBERS, roles: ROLES, roleGroups: ROLE_GROUPS,
+    priorityGroups: PRIORITY_GROUPS, history: HISTORY,
+    pairHistory: PAIR_HISTORY, meetings: MEETINGS,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "backup_2026-07-06.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  document.getElementById("backup-done").style.display = "";
+};
+
+const dlg = document.getElementById("restore-dialog");
+document.getElementById("restore").onclick = () => dlg.showModal();
+document.getElementById("restore-cancel").onclick = () => dlg.close();
+document.getElementById("restore-ok").onclick = () => {
+  dlg.close();
+  alert("復元しました。（モックのためデータは変わりません）");
+};
+</script>
+</body>
+</html>

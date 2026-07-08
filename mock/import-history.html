@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S6 履歴インポート — 週日の集会 割り当てツール</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+  <h1>履歴インポート（過去の記入済み PDF）</h1>
+  <p class="page-desc">導入時に、直近3か月ほどの記入済み PDF から担当実績を取り込みます。名前は自動で成員に対応づけられ、判断できなかったものだけ確認を求めます。（S6 / 要件定義 §4.7）</p>
+
+  <div class="panel">
+    <button class="btn btn-primary" id="pick">PDF ファイルを選択…（複数可）</button>
+    <span id="picked" style="margin-left:10px; font-size:14px; color:var(--muted)"></span>
+  </div>
+
+  <section id="result" style="display:none">
+    <div class="notice" id="review-notice">
+      2件の名前が自動で対応づけできませんでした。下の <span class="badge badge-amber">要確認</span> 行で対象の成員を選んでください。一度対応づけた名前は記憶されます。
+    </div>
+
+    <h2>抽出結果のプレビュー</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>集会日</th><th>プログラム</th><th>PDF 上の記載</th><th>対応づけ先の成員</th><th>状態</th></tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <div class="toolbar" style="margin-top:14px">
+      <span class="spacer"></span>
+      <button class="btn btn-primary" id="confirm">確定して履歴に登録</button>
+    </div>
+    <div id="done" class="notice notice-ok" style="display:none">
+      履歴に登録しました。今後の割り当て画面の並び順に反映されます。（モックのためデータは変わりません）
+    </div>
+  </section>
+</main>
+
+<script src="assets/data.js"></script>
+<script src="assets/common.js"></script>
+<script>
+renderSidebar("import-history");
+
+// 抽出サンプル: matched = 自動対応済み memberId / null = 要確認
+const EXTRACTED = [
+  { date: "2026-04-07", prog: "1. 宝の話",        raw: "山田 健一",  matched: "m01" },
+  { date: "2026-04-07", prog: "3. 聖書朗読",      raw: "渡辺 修",    matched: "m05" },
+  { date: "2026-04-07", prog: "4. 実演（生徒）",  raw: "鈴木 花子",  matched: "m09" },
+  { date: "2026-04-07", prog: "4. 実演（相手）",  raw: "田中 美咲",  matched: "m10" },
+  { date: "2026-04-07", prog: "8. 研究（朗読）",  raw: "高橋　誠",   matched: null },  // 全角スペース → 要確認
+  { date: "2026-04-21", prog: "1. 宝の話",        raw: "佐藤 太郎",  matched: "m02" },
+  { date: "2026-04-21", prog: "5. 実演（生徒）",  raw: "山本恵子",   matched: null },  // スペースなし → 要確認
+  { date: "2026-04-21", prog: "7. 生活の話",      raw: "山田 健一",  matched: "m01" },
+];
+
+document.getElementById("pick").onclick = () => {
+  document.getElementById("picked").innerHTML =
+    '<code class="path">2026年4月.pdf</code>, <code class="path">2026年5月.pdf</code>, <code class="path">2026年6月.pdf</code>';
+  document.getElementById("result").style.display = "";
+  render();
+};
+
+function render() {
+  // 要確認を先頭に集約（§7 S6）
+  const sorted = [...EXTRACTED].sort((a, b) => (a.matched === null ? -1 : 0) - (b.matched === null ? -1 : 0));
+  const memberOpts = (sel) =>
+    `<option value="">— 成員を選択 —</option>` +
+    MEMBERS.filter((m) => m.status === "active")
+      .map((m) => `<option value="${m.id}" ${m.id === sel ? "selected" : ""}>${m.name}</option>`)
+      .join("") +
+    `<option value="__new__">＋ 新規成員として登録…</option>`;
+
+  document.getElementById("rows").innerHTML = sorted.map((r, i) => {
+    if (r.matched) {
+      return `<tr>
+        <td>${fmtDate(r.date)}</td><td>${r.prog}</td><td>${r.raw}</td>
+        <td>${memberName(r.matched)}</td>
+        <td><span class="badge badge-green">自動対応</span></td>
+      </tr>`;
+    }
+    return `<tr class="row-warn">
+      <td>${fmtDate(r.date)}</td><td>${r.prog}</td><td><strong>${r.raw}</strong></td>
+      <td><select data-i="${i}" onchange="this.closest('tr').querySelector('.badge').outerHTML='<span class=\\'badge badge-green\\'>対応づけ済み（記憶されます）</span>'">${memberOpts()}</select></td>
+      <td><span class="badge badge-amber">要確認</span></td>
+    </tr>`;
+  }).join("");
+}
+
+document.getElementById("confirm").onclick = () => {
+  const remaining = [...document.querySelectorAll("#rows select")].filter((s) => !s.value).length;
+  if (remaining > 0 && !confirm(`要確認が ${remaining} 件残っています。未確認の行を除いて登録しますか？`)) return;
+  document.getElementById("done").style.display = "";
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,269 @@
+/* ============================================================
+   集会プログラム割り当てツール — 共通スタイル
+   実装時は Tauri フロントの共通 CSS としてそのまま流用可能。
+   ============================================================ */
+
+:root {
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --border: #dfe3e8;
+  --text: #1f2733;
+  --muted: #6b7280;
+  --accent: #2f6feb;
+  --accent-soft: #e8f0fe;
+  --danger: #d64545;
+  --warn-bg: #fff7e6;
+  --warn-border: #f0c36d;
+  --radius: 8px;
+  --sidebar-w: 220px;
+  font-size: 15px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ---------- サイドバー ---------- */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  background: #263445;
+  color: #e5eaf1;
+  padding: 16px 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+.sidebar .app-title {
+  font-size: 15px;
+  font-weight: 700;
+  padding: 4px 16px 14px;
+  line-height: 1.4;
+  border-bottom: 1px solid rgba(255,255,255,.12);
+  margin-bottom: 10px;
+}
+.sidebar nav a {
+  display: block;
+  padding: 9px 16px;
+  color: #c8d2df;
+  text-decoration: none;
+  font-size: 14px;
+}
+.sidebar nav a:hover { background: rgba(255,255,255,.07); color: #fff; }
+.sidebar nav a.active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.sidebar nav .nav-section {
+  font-size: 11px;
+  color: #8a97a8;
+  padding: 14px 16px 4px;
+  letter-spacing: .08em;
+}
+
+/* ---------- メイン ---------- */
+main {
+  flex: 1;
+  padding: 24px 32px 60px;
+  max-width: 1100px;
+}
+h1 { font-size: 21px; margin: 0 0 4px; }
+.page-desc { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+h2 { font-size: 16px; margin: 28px 0 10px; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+
+/* ---------- テーブル ---------- */
+table { width: 100%; border-collapse: collapse; background: var(--panel); }
+.table-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow-x: auto;
+  background: var(--panel);
+}
+th, td {
+  text-align: left;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  vertical-align: middle;
+}
+th { background: #f2f4f7; font-weight: 600; font-size: 13px; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--accent-soft); }
+tr.row-warn td { background: var(--warn-bg); }
+tr.row-muted td { color: var(--muted); background: #fafbfc; }
+
+/* ---------- バッジ ---------- */
+.badge {
+  display: inline-block;
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.badge-gray   { background: #eceff3; color: #5b6572; }
+.badge-amber  { background: #fdf0d5; color: #8a5a00; }
+.badge-green  { background: #ddf3e4; color: #1a7f37; }
+.badge-blue   { background: #dbeafe; color: #1d4ed8; }
+.badge-purple { background: #ede9fe; color: #6d28d9; }
+.badge-red    { background: #fde8e8; color: #b42318; }
+
+/* ---------- ボタン ---------- */
+.btn {
+  display: inline-block;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 7px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn:hover { background: #f2f4f7; }
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.btn-primary:hover { background: #2558c4; }
+.btn-danger { color: var(--danger); border-color: #f0c4c4; }
+.btn-danger:hover { background: #fdf1f1; }
+.btn-sm { padding: 3px 10px; font-size: 13px; }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.toolbar .spacer { flex: 1; }
+
+/* ---------- フォーム ---------- */
+label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 3px; }
+input[type="text"], input[type="search"], select {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 14px;
+  background: #fff;
+  color: var(--text);
+  min-width: 140px;
+}
+select:focus, input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.field { margin-bottom: 14px; }
+.field-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.checks { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 4px 0; }
+.checks label {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 14px; color: var(--text); margin: 0;
+}
+
+/* ---------- ダイアログ ---------- */
+dialog {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 22px 26px;
+  min-width: 440px;
+  max-width: 90vw;
+  box-shadow: 0 12px 40px rgba(0,0,0,.18);
+}
+dialog::backdrop { background: rgba(20,28,40,.45); }
+dialog h3 { margin: 0 0 14px; font-size: 16px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+
+/* ---------- 通知・状態 ---------- */
+.notice {
+  border: 1px solid var(--warn-border);
+  background: var(--warn-bg);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+.notice-ok {
+  border-color: #9fd6ae;
+  background: #eefaf1;
+}
+.empty-state {
+  text-align: center;
+  color: var(--muted);
+  padding: 48px 20px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+.unsaved-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--danger); margin-left: 6px; vertical-align: middle;
+}
+
+/* ---------- 割り当て画面 ---------- */
+.meeting-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.meeting-header .date { font-size: 19px; font-weight: 700; }
+.section-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #7a5b1e;
+  background: #fdf3dd;
+  padding: 6px 12px;
+  border-radius: 4px;
+  margin: 18px 0 8px;
+}
+.section-label.sec-treasures { color: #5b4a10; background: #f6ecd0; }
+.section-label.sec-ministry  { color: #7a3d10; background: #fbe8d8; }
+.section-label.sec-living    { color: #7a1d2b; background: #fbdfe3; }
+.slot-row {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) 240px 240px;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+.slot-row .prog-name { font-size: 14px; }
+.slot-row .slot-kind { font-size: 12px; color: var(--muted); }
+.slot-row select { width: 100%; min-width: 0; }
+.slot-row.disabled { opacity: .55; background: #f0f2f4; }
+.partner-opts { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; margin-top: 3px; }
+
+/* ---------- ウィザード ---------- */
+.wizard-steps { display: flex; gap: 8px; margin-bottom: 20px; }
+.wizard-steps .step {
+  padding: 6px 14px; border-radius: 999px; font-size: 13px;
+  background: #eceff3; color: var(--muted);
+}
+.wizard-steps .step.current { background: var(--accent); color: #fff; font-weight: 600; }
+
+code.path {
+  background: #eef1f5; padding: 2px 8px; border-radius: 4px;
+  font-size: 13px; font-family: Consolas, monospace;
+}

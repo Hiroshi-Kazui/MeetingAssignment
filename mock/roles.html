@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S3 ロール／ロールグループ設定 — 週日の集会 割り当てツール</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+  <h1>ロール／ロールグループ設定</h1>
+  <p class="page-desc">ロール = スロットを果たす資格（候補プールと履歴の単位）。ロールグループ = 成員へまとめて付与するための束。（S3 / 要件定義 §4.2）</p>
+
+  <h2>ロール</h2>
+  <div class="toolbar">
+    <span class="spacer"></span>
+    <button class="btn btn-primary" id="add-role">＋ ロールを追加</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>名称</th><th>種別</th><th>優先度グループ</th><th>保持者数</th><th></th></tr>
+      </thead>
+      <tbody id="role-rows"></tbody>
+    </table>
+  </div>
+
+  <h2>ロールグループ（成員への一括付与用）</h2>
+  <div class="toolbar">
+    <span class="spacer"></span>
+    <button class="btn btn-primary" id="add-group">＋ ロールグループを追加</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>名称</th><th>内包ロール</th><th></th></tr>
+      </thead>
+      <tbody id="group-rows"></tbody>
+    </table>
+  </div>
+</main>
+
+<!-- ロール編集ダイアログ -->
+<dialog id="role-dialog">
+  <h3 id="role-dlg-title">ロールを追加</h3>
+  <div class="field">
+    <label>名称</label>
+    <input type="text" id="r-name" style="width:100%">
+  </div>
+  <div class="field">
+    <label>種別（表示用）</label>
+    <input type="text" id="r-type" placeholder="例: 話 / 生徒 / 司会">
+  </div>
+  <div class="dialog-actions">
+    <button class="btn" id="r-cancel">キャンセル</button>
+    <button class="btn btn-primary" id="r-save">保存</button>
+  </div>
+</dialog>
+
+<!-- ロールグループ編集ダイアログ -->
+<dialog id="group-dialog">
+  <h3 id="group-dlg-title">ロールグループを追加</h3>
+  <div class="field">
+    <label>名称</label>
+    <input type="text" id="g-name" style="width:100%" placeholder="例: 長老 / 生徒（兄弟）">
+  </div>
+  <div class="field">
+    <label>内包ロール</label>
+    <div class="checks" id="g-roles"></div>
+  </div>
+  <div class="dialog-actions">
+    <button class="btn" id="g-cancel">キャンセル</button>
+    <button class="btn btn-primary" id="g-save">保存</button>
+  </div>
+</dialog>
+
+<script src="assets/data.js"></script>
+<script src="assets/common.js"></script>
+<script>
+renderSidebar("roles");
+
+let editingRole = null, editingGroup = null;
+
+function render() {
+  document.getElementById("role-rows").innerHTML = ROLES.map((r) => {
+    const holders = roleHolders(r.id).length;
+    const pg = r.priorityGroupId ? byId(PRIORITY_GROUPS, r.priorityGroupId)?.name : "—";
+    const hasHistory = HISTORY.some((h) => h.roleId === r.id);
+    return `<tr>
+      <td>${r.name}</td>
+      <td>${r.slotType}</td>
+      <td>${pg}</td>
+      <td>${holders} 名</td>
+      <td>
+        <button class="btn btn-sm" onclick="openRole('${r.id}')">編集</button>
+        <button class="btn btn-sm btn-danger" onclick="delRole('${r.id}', ${holders}, ${hasHistory})">削除</button>
+      </td>
+    </tr>`;
+  }).join("");
+
+  document.getElementById("group-rows").innerHTML = ROLE_GROUPS.map((g) => `
+    <tr>
+      <td>${g.name}</td>
+      <td style="font-size:13px">${g.roleIds.map((id) => byId(ROLES, id)?.name).join("、")}</td>
+      <td><button class="btn btn-sm" onclick="openGroup('${g.id}')">編集</button></td>
+    </tr>`).join("");
+}
+
+// ---- ロール ----
+const roleDlg = document.getElementById("role-dialog");
+function openRole(id) {
+  editingRole = id ? byId(ROLES, id) : null;
+  document.getElementById("role-dlg-title").textContent = editingRole ? `${editingRole.name} を編集` : "ロールを追加";
+  document.getElementById("r-name").value = editingRole?.name ?? "";
+  document.getElementById("r-type").value = editingRole?.slotType ?? "";
+  roleDlg.showModal();
+}
+function delRole(id, holders, hasHistory) {
+  if (holders > 0 || hasHistory) {
+    alert(`このロールは保持者 ${holders} 名・履歴${hasHistory ? "あり" : "なし"}のため削除できません。\n先に成員から外すか、名称変更で対応してください。`);
+    return;
+  }
+  if (confirm("このロールを削除しますか？")) {
+    ROLES.splice(ROLES.findIndex((r) => r.id === id), 1);
+    render();
+  }
+}
+document.getElementById("add-role").onclick = () => openRole(null);
+document.getElementById("r-cancel").onclick = () => roleDlg.close();
+document.getElementById("r-save").onclick = () => {
+  const name = document.getElementById("r-name").value.trim();
+  if (!name) { alert("名称を入力してください"); return; }
+  const rec = editingRole ?? { id: "r_new" + ROLES.length, priorityGroupId: null };
+  rec.name = name;
+  rec.slotType = document.getElementById("r-type").value.trim() || "—";
+  if (!editingRole) ROLES.push(rec);
+  roleDlg.close();
+  render();
+};
+
+// ---- ロールグループ ----
+const groupDlg = document.getElementById("group-dialog");
+function openGroup(id) {
+  editingGroup = id ? byId(ROLE_GROUPS, id) : null;
+  document.getElementById("group-dlg-title").textContent = editingGroup ? `${editingGroup.name} を編集` : "ロールグループを追加";
+  document.getElementById("g-name").value = editingGroup?.name ?? "";
+  document.getElementById("g-roles").innerHTML = ROLES.map(
+    (r) => `<label><input type="checkbox" value="${r.id}" ${editingGroup?.roleIds.includes(r.id) ? "checked" : ""}> ${r.name}</label>`
+  ).join("");
+  groupDlg.showModal();
+}
+document.getElementById("add-group").onclick = () => openGroup(null);
+document.getElementById("g-cancel").onclick = () => groupDlg.close();
+document.getElementById("g-save").onclick = () => {
+  const name = document.getElementById("g-name").value.trim();
+  if (!name) { alert("名称を入力してください"); return; }
+  const rec = editingGroup ?? { id: "rg_new" + ROLE_GROUPS.length };
+  rec.name = name;
+  rec.roleIds = [...document.querySelectorAll("#g-roles input:checked")].map((c) => c.value);
+  if (!editingGroup) ROLE_GROUPS.push(rec);
+  groupDlg.close();
+  render();
+};
+
+render();
+</script>
+</body>
+</html>

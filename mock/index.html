@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S1 ホーム（集会日一覧） — 週日の集会 割り当てツール</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+  <h1>ホーム（集会日一覧）</h1>
+  <p class="page-desc">取り込み済みの集会日と割り当て状況の一覧。行をクリックすると割り当て画面を開きます。（S1 / 要件定義 §7）</p>
+
+  <div class="toolbar">
+    <a class="btn btn-primary" href="import-excel.html">＋ Excel を取り込む</a>
+    <a class="btn" href="export.html">エクスポート</a>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>開催日</th><th>状態</th><th>割当</th><th>備考</th></tr>
+      </thead>
+      <tbody id="meeting-rows"></tbody>
+    </table>
+  </div>
+
+  <div id="empty" class="empty-state" style="display:none">
+    <p>まだ集会プログラムがありません。</p>
+    <p>初回セットアップ: ① <a href="members.html">成員を登録</a> → ② <a href="roles.html">ロールを付与</a> → ③ <a href="import-history.html">過去 PDF から履歴をインポート</a> → ④ <a href="import-excel.html">Excel を取り込み</a></p>
+  </div>
+</main>
+
+<script src="assets/data.js"></script>
+<script src="assets/common.js"></script>
+<script>
+renderSidebar("home");
+
+const tbody = document.getElementById("meeting-rows");
+if (MEETINGS.length === 0) {
+  document.getElementById("empty").style.display = "";
+} else {
+  tbody.innerHTML = MEETINGS.map((mt) => {
+    const total = totalSlotCount(mt);
+    const assigned = Object.keys(mt.assignments).length;
+    const note = mt.circuit ? '<span class="badge badge-purple">巡回訪問週</span>' : "";
+    return `<tr class="clickable" onclick="location.href='assign.html?date=${mt.date}'">
+      <td>${fmtDateFull(mt.date)}</td>
+      <td>${STATUS_BADGE[mt.status]}</td>
+      <td>${assigned} / ${total} スロット</td>
+      <td>${note}</td>
+    </tr>`;
+  }).join("");
+}
+</script>
+</body>
+</html>

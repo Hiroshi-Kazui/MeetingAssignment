@@ -1,0 +1,8 @@
+# 個人情報を含む実データ（絶対にコミットしない）
+成員インポート_2026年度野外奉仕グループ.csv
+
+# デバッグ・一時生成物
+.playwright-mcp/
+tmp/
+.claude/scheduled_tasks.lock
+s5-review-circuit.png

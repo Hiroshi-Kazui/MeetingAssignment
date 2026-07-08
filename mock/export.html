@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S8 エクスポート — 週日の集会 割り当てツール</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+  <h1>エクスポート（Excel 書き出し)</h1>
+  <p class="page-desc">割り当て済みの内容を、元の Excel（テンプレート）に名前入りで書き戻し、<strong>別のファイルとして</strong>保存します。元のファイルはそのまま残ります。（S8 / 要件定義 §4.5）</p>
+
+  <div class="panel">
+    <div class="field">
+      <label>書き戻し先のテンプレート Excel</label>
+      <button class="btn" id="pick">ファイルを選択…</button>
+      <span id="picked" style="margin-left:10px; font-size:14px; color:var(--muted)"></span>
+    </div>
+    <div class="field">
+      <label>書き出す集会日</label>
+      <div class="checks" id="dates"></div>
+    </div>
+  </div>
+
+  <div id="warn" class="notice" style="display:none"></div>
+
+  <div class="toolbar">
+    <span class="spacer"></span>
+    <button class="btn btn-primary" id="run" disabled>書き出す</button>
+  </div>
+
+  <div id="done" class="panel notice-ok" style="display:none; border-color:#9fd6ae; background:#eefaf1">
+    <strong>書き出しました。</strong><br>
+    保存先: <code class="path" id="out-path"></code><br>
+    <span style="font-size:13px; color:var(--muted)">名前は E列のラベルの後ろに敬称なしで追記され、2枠（生徒/相手）は「/」区切りです。ホームの該当日は「エクスポート済み」になります。</span>
+  </div>
+</main>
+
+<script src="assets/data.js"></script>
+<script src="assets/common.js"></script>
+<script>
+renderSidebar("export");
+
+// 集会日チェックリスト（既定 = 割当のある日を選択）
+document.getElementById("dates").innerHTML = MEETINGS.map((mt) => {
+  const assigned = Object.keys(mt.assignments).length;
+  const total = totalSlotCount(mt);
+  const checked = assigned > 0 ? "checked" : "";
+  return `<label><input type="checkbox" value="${mt.date}" data-assigned="${assigned}" data-total="${total}" ${checked} onchange="update()">
+    ${fmtDateFull(mt.date)}（${assigned}/${total}）</label>`;
+}).join("");
+
+let filePicked = false;
+document.getElementById("pick").onclick = () => {
+  filePicked = true;
+  document.getElementById("picked").innerHTML = '<code class="path">2026年7-8月.xlsx</code>';
+  update();
+};
+
+function update() {
+  const checks = [...document.querySelectorAll("#dates input:checked")];
+  document.getElementById("run").disabled = !filePicked || checks.length === 0;
+
+  // 未割当スロットの警告（出力は可能・該当セルは空欄: §7 S8）
+  const incomplete = checks.filter((c) => Number(c.dataset.assigned) < Number(c.dataset.total));
+  const warn = document.getElementById("warn");
+  if (incomplete.length) {
+    warn.style.display = "";
+    warn.innerHTML =
+      "⚠ 次の集会日に未割当のスロットがあります（そのまま書き出すと該当欄は空欄になります）: " +
+      incomplete.map((c) => `${fmtDate(c.value)}（${c.dataset.assigned}/${c.dataset.total}）`).join("、");
+  } else {
+    warn.style.display = "none";
+  }
+}
+update();
+
+document.getElementById("run").onclick = () => {
+  document.getElementById("out-path").textContent =
+    "C:\\Users\\…\\Documents\\2026年7-8月_割当済み.xlsx";
+  document.getElementById("done").style.display = "";
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S7 割り当て — 週日の集会 割り当てツール</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+  <h1>割り当て</h1>
+  <p class="page-desc">1画面 = 1集会日。プルダウンは「前回担当から間が空いている順」（未担当者が最上位）。提案順に縛られず誰でも選べます。（S7 / 要件定義 §4.4, §4.6）</p>
+
+  <div class="meeting-header">
+    <button class="btn" id="prev">◀ 前の集会日</button>
+    <span class="date" id="meeting-date"></span>
+    <span id="meeting-badges"></span>
+    <span id="unsaved" style="display:none" title="未保存の変更があります"><span class="unsaved-dot"></span> 未保存</span>
+    <span class="spacer" style="flex:1"></span>
+    <button class="btn" id="next">次の集会日 ▶</button>
+    <button class="btn btn-primary" id="save">保存</button>
+  </div>
+
+  <div id="notice" class="notice notice-ok" style="display:none"></div>
+  <div id="program-list"></div>
+</main>
+
+<!-- 同一日重複の確認ダイアログ（§6-7: 禁止はしない） -->
+<dialog id="dup-dialog">
+  <h3>同じ日にすでに割り当てられています</h3>
+  <p id="dup-msg" style="font-size:14px"></p>
+  <div class="dialog-actions">
+    <button class="btn" id="dup-cancel">選び直す</button>
+    <button class="btn btn-primary" id="dup-ok">このまま割り当てる</button>
+  </div>
+</dialog>
+
+<script src="assets/data.js"></script>
+<script src="assets/common.js"></script>
+<script>
+renderSidebar("assign");
+
+// ---- 対象集会日の決定（?date=YYYY-MM-DD、無指定なら最初の未完了日） ----
+const params = new URLSearchParams(location.search);
+let meeting =
+  MEETINGS.find((m) => m.date === params.get("date")) ||
+  MEETINGS.find((m) => m.status === "none" || m.status === "partial") ||
+  MEETINGS[0];
+
+// 画面上の選択状態（保存までは履歴・優先度に反映しない: §4.4）
+let draft = { ...meeting.assignments };
+let dirty = false;
+// part6「話」の回: 相手役スロット省略（§4.3）
+let part6TalkMode = false;
+// 野外奉仕の生徒枠「兄弟のみ」フィルタ（slotKey → boolean）。話の回は自動オン（§4.6）
+const brothersOnly = {};
+
+const idx = () => MEETINGS.indexOf(meeting);
+document.getElementById("prev").onclick = () => nav(-1);
+document.getElementById("next").onclick = () => nav(+1);
+function nav(d) {
+  const i = idx() + d;
+  if (i < 0 || i >= MEETINGS.length) return;
+  if (dirty && !confirm("未保存の変更があります。破棄して移動しますか？")) return;
+  location.href = `assign.html?date=${MEETINGS[i].date}`;
+}
+
+function setDirty(v) {
+  dirty = v;
+  document.getElementById("unsaved").style.display = v ? "" : "none";
+}
+
+// ---- 候補オプションの生成 ----
+function optionsFor(slot, currentVal) {
+  let list;
+  if (slot.kind === "partner") {
+    const performerId = draft[slot.key.replace(/-s\d+$/, "-s0")];
+    if (!performerId) return null; // 演者未選択 → プルダウン無効
+    const showAll = document.querySelector(`[data-showall="${slot.key}"]`)?.checked;
+    list = partnerCandidatesFor(slot.roleId, performerId, { showAll }).map((c) => ({
+      id: c.member.id,
+      text: `${c.member.name}（ペア:${fmtDate(c.pairLast)}・個人:${fmtDate(c.last)}）`,
+    }));
+  } else {
+    const gender = brothersOnly[slot.key] ? "M" : null;
+    list = candidatesFor(slot.roleId, { gender }).map((c) => ({
+      id: c.member.id,
+      text: `${c.member.name}（前回 ${fmtDate(c.last)}）`,
+    }));
+  }
+  // 絞り込みで候補から外れても、選択済みの成員は黙って消さない
+  if (currentVal && !list.some((o) => o.id === currentVal)) {
+    list.push({ id: currentVal, text: `${memberName(currentVal)}（絞り込み対象外）` });
+  }
+  return (
+    `<option value="">— 未割当 —</option>` +
+    list
+      .map((o) => `<option value="${o.id}" ${o.id === currentVal ? "selected" : ""}>${o.text}</option>`)
+      .join("")
+  );
+}
+
+// ---- 描画 ----
+const SECTION_TITLES = {
+  treasures: "神の言葉の宝",
+  ministry: "野外奉仕に励む",
+  living: "クリスチャンとして生活する",
+};
+
+function render() {
+  document.getElementById("meeting-date").textContent = fmtDateFull(meeting.date);
+  document.getElementById("meeting-badges").innerHTML =
+    STATUS_BADGE[meeting.status] +
+    (meeting.circuit ? ' <span class="badge badge-purple">巡回訪問週</span>' : "");
+  document.getElementById("prev").disabled = idx() === 0;
+  document.getElementById("next").disabled = idx() === MEETINGS.length - 1;
+
+  const progs = buildPrograms(meeting);
+  let html = "";
+  let lastSection = undefined;
+  for (const p of progs) {
+    if (p.section !== lastSection && p.section) {
+      html += `<div class="section-label sec-${p.section}">${SECTION_TITLES[p.section]}</div>`;
+    }
+    lastSection = p.section;
+
+    if (p.noAssign) {
+      html += `<div class="slot-row disabled">
+        <div><div class="prog-name">${p.name}</div><div class="slot-kind">巡回監督が担当（割当対象外）</div></div>
+        <div></div><div></div></div>`;
+      continue;
+    }
+
+    const isPart6 = p.name.startsWith("6.");
+    const cells = p.slots.map((s) => {
+      const isPartner = s.kind === "partner";
+      const omitted = isPartner && isPart6 && part6TalkMode;
+      if (omitted) {
+        return `<div><div class="slot-kind">${s.label}</div>
+          <select disabled><option>（話の回のため省略）</option></select></div>`;
+      }
+      const opts = optionsFor(s, draft[s.key]);
+      const disabled = opts === null;
+      const showAllCtl = isPartner
+        ? `<div class="partner-opts"><label style="margin:0"><input type="checkbox" data-showall="${s.key}" ${
+            document.querySelector(`[data-showall="${s.key}"]`)?.checked ? "checked" : ""
+          }> 全員表示（異性・夫婦等も含める）</label></div>`
+        : "";
+      // 野外奉仕（part4-6）の生徒枠のみ「兄弟のみ」フィルタを提供（§4.6: 話の回は自動オン）
+      const brothersCtl = p.section === "ministry" && !isPartner
+        ? `<div class="partner-opts"><label style="margin:0"><input type="checkbox" data-brothers="${s.key}" ${
+            brothersOnly[s.key] ? "checked" : ""
+          }> 兄弟のみ</label></div>`
+        : "";
+      return `<div>
+        <div class="slot-kind">${s.label}</div>
+        <select data-slot="${s.key}" data-role="${s.roleId}" data-kind="${s.kind}" ${disabled ? "disabled" : ""}>
+          ${disabled ? "<option>（先に生徒を選択）</option>" : opts}
+        </select>
+        ${showAllCtl}${brothersCtl}
+      </div>`;
+    });
+    while (cells.length < 2) cells.push("<div></div>");
+
+    const part6Toggle = isPart6
+      ? `<label style="margin-top:4px"><input type="checkbox" id="part6-talk" ${part6TalkMode ? "checked" : ""}> この回は「話」（相手役なし）</label>`
+      : "";
+    html += `<div class="slot-row">
+      <div><div class="prog-name">${p.name}</div>${part6Toggle}</div>
+      ${cells.join("")}
+    </div>`;
+  }
+  document.getElementById("program-list").innerHTML = html;
+  bindEvents();
+}
+
+// ---- イベント ----
+function bindEvents() {
+  document.querySelectorAll("select[data-slot]").forEach((sel) => {
+    sel.onchange = () => onSelect(sel);
+  });
+  document.querySelectorAll("[data-showall]").forEach((cb) => {
+    cb.onchange = () => render(); // 候補プールを切り替えて再描画
+  });
+  document.querySelectorAll("[data-brothers]").forEach((cb) => {
+    cb.onchange = () => {
+      brothersOnly[cb.dataset.brothers] = cb.checked; // 表示の絞り込みのみ（未保存扱いにしない）
+      render();
+    };
+  });
+  const p6 = document.getElementById("part6-talk");
+  if (p6)
+    p6.onchange = () => {
+      part6TalkMode = p6.checked;
+      brothersOnly["p7-s0"] = p6.checked; // 話=兄弟のみ を自動連動（手動で変更可）
+      if (part6TalkMode) delete draft["p7-s1"]; // part6 の相手スロット
+      setDirty(true);
+      render();
+    };
+}
+
+function onSelect(sel) {
+  const key = sel.dataset.slot;
+  const memberId = sel.value || undefined;
+
+  // 同一日の重複チェック（確認のみ・§6-7）
+  if (memberId) {
+    const dupCount = Object.entries(draft).filter(([k, v]) => k !== key && v === memberId).length;
+    if (dupCount > 0) {
+      const dlg = document.getElementById("dup-dialog");
+      document.getElementById("dup-msg").textContent =
+        `${memberName(memberId)} さんは、この集会日ですでに ${dupCount} 件の割り当てがあります。続行しますか？`;
+      dlg.showModal();
+      document.getElementById("dup-ok").onclick = () => { dlg.close(); commit(); };
+      document.getElementById("dup-cancel").onclick = () => { dlg.close(); sel.value = draft[key] ?? ""; };
+      return;
+    }
+  }
+  commit();
+
+  function commit() {
+    if (memberId) draft[key] = memberId;
+    else delete draft[key];
+    setDirty(true);
+    // 演者を変えたら相手役の候補順が変わるため再描画（§4.6 ペア優先）
+    if (sel.dataset.kind === "performer") render();
+  }
+}
+
+// ---- 保存（§4.4: 保存時に履歴へ確定。モックではメモリ内のみ） ----
+document.getElementById("save").onclick = () => {
+  meeting.assignments = { ...draft };
+  const total = totalSlotCount(meeting) - (part6TalkMode ? 1 : 0);
+  const n = Object.keys(draft).length;
+  meeting.status = n === 0 ? "none" : n >= total ? "done" : "partial";
+  setDirty(false);
+  const notice = document.getElementById("notice");
+  notice.style.display = "";
+  notice.textContent = `保存しました（${n} / ${total} スロット）。履歴に反映され、次回から優先度に反映されます。`;
+  render();
+};
+
+// 未保存のまま離脱する場合の確認（§7 共通事項）
+window.addEventListener("beforeunload", (e) => { if (dirty) e.preventDefault(); });
+
+render();
+</script>
+</body>
+</html>
