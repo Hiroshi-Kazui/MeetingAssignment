@@ -2,6 +2,7 @@
 import type { Ctx } from "../ui/router";
 import { pickAndReadFiles, pickAndWriteFile, type PickedFile } from "../platform";
 import { exportWorkbook } from "../excel/export";
+import { extractWorkbookDates } from "../excel/import";
 import { sortedMeetings } from "../logic/meetings";
 import { totalSlotCount } from "../logic/programs";
 import { esc, fmtDate, fmtDateFull } from "../ui/format";
@@ -10,6 +11,10 @@ export function exportView(el: HTMLElement, ctx: Ctx): void {
   const d = ctx.data;
   let template: PickedFile | null = null; // 取り込み元と同じ期間の Excel を毎回選択する
   const checked = new Set<string>();
+  /** テンプレートの A列から抽出した集会日。書き出し対象はここから自動判別する */
+  let templateDates: string[] | null = null;
+  /** テンプレートに載っているが取り込みデータが無い日（書き出し対象外の注意表示用） */
+  let unknownDates: string[] = [];
   let donePath: string | null = null;
   let doneShown = false;
 
@@ -39,10 +44,22 @@ export function exportView(el: HTMLElement, ctx: Ctx): void {
           <span style="margin-left:10px; font-size:14px; color:var(--muted)">${template ? `<code class="path">${esc(template.name)}</code>` : ""}</span>
         </div>
         <div class="field">
-          <label>書き出す集会日</label>
+          <label>書き出す集会日（テンプレートの日付から自動選択されます。外したい日はチェックを外してください）</label>
           <div class="checks" id="dates">${dateChecks || '<span style="color:var(--muted)">取り込み済みの集会日がありません</span>'}</div>
         </div>
       </div>
+      ${
+        unknownDates.length
+          ? `<div class="notice">⚠ テンプレートには次の日付がありますが、取り込み済みデータが無いため書き出されません: ${unknownDates
+              .map(fmtDate)
+              .join("、")}</div>`
+          : ""
+      }
+      ${
+        template && templateDates !== null && checked.size === 0
+          ? `<div class="notice">⚠ テンプレートの日付（A列）と一致する取り込み済みの集会日がありません。取り込み時と同じ期間のファイルか確認してください。</div>`
+          : ""
+      }
       ${
         incomplete.length
           ? `<div class="notice">⚠ 次の集会日に未割当のスロットがあります（そのまま書き出すと該当欄は空欄になります）: ${incomplete
@@ -70,6 +87,21 @@ export function exportView(el: HTMLElement, ctx: Ctx): void {
       if (files.length === 0) return;
       template = files[0];
       doneShown = false;
+      // A列の日付から書き出し対象の週を自動判別する（チェックは手動で外せる）
+      checked.clear();
+      unknownDates = [];
+      try {
+        templateDates = await extractWorkbookDates(template.data);
+        const known = new Set(sortedMeetings(d).map((m) => m.date));
+        for (const dt of templateDates) {
+          if (known.has(dt)) checked.add(dt);
+          else unknownDates.push(dt);
+        }
+      } catch (e) {
+        // 日付抽出に失敗しても従来どおり手動チェックで書き出せるようにする
+        templateDates = null;
+        console.error("テンプレートの日付抽出に失敗", e);
+      }
       render();
     };
     el.querySelectorAll<HTMLInputElement>("#dates input").forEach((cb) => {

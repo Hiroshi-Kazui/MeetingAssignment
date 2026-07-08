@@ -83,6 +83,29 @@ function findDateInRow(row: ExcelJS.Row, fallbackYear: number): string | null {
   return null;
 }
 
+/**
+ * ワークブックに含まれる集会日（A列）だけを抽出する（昇順・重複なし）。
+ * エクスポート時に「テンプレートに載っている週」を自動判別するために使う（§4.5）。
+ */
+export async function extractWorkbookDates(data: Uint8Array): Promise<string[]> {
+  const ExcelJS = await loadExcelJS();
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer);
+
+  const dates = new Set<string>();
+  let fallbackYear = new Date().getFullYear();
+  for (const ws of wb.worksheets) {
+    for (let r = 1; r <= ws.rowCount; r++) {
+      const date = findDateInRow(ws.getRow(r), fallbackYear);
+      if (date) {
+        fallbackYear = Number(date.slice(0, 4));
+        dates.add(date);
+      }
+    }
+  }
+  return [...dates].sort();
+}
+
 function sectionHeading(cText: string): Section | undefined {
   if (/神の言葉の宝/.test(cText)) return "treasures";
   if (/野外奉仕に励む/.test(cText)) return "ministry";
