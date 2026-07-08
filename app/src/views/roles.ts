@@ -37,7 +37,10 @@ export function rolesView(el: HTMLElement, ctx: Ctx): void {
         (g) => `<tr>
           <td>${esc(g.name)}</td>
           <td style="font-size:13px">${g.roleIds.map((id) => esc(byId(d.roles, id)?.name ?? "?")).join("、")}</td>
-          <td><button class="btn btn-sm" data-edit-group="${g.id}">編集</button></td>
+          <td>
+            <button class="btn btn-sm" data-edit-group="${g.id}">編集</button>
+            <button class="btn btn-sm btn-danger" data-del-group="${g.id}">削除</button>
+          </td>
         </tr>`
       )
       .join("");
@@ -92,6 +95,24 @@ export function rolesView(el: HTMLElement, ctx: Ctx): void {
     el.querySelectorAll<HTMLButtonElement>("[data-edit-group]").forEach((b) => {
       b.onclick = () => openGroup(byId(d.roleGroups, b.dataset.editGroup!) ?? null);
     });
+    el.querySelectorAll<HTMLButtonElement>("[data-del-group]").forEach((b) => {
+      b.onclick = () => delGroup(b.dataset.delGroup!);
+    });
+  }
+
+  function delGroup(id: string): void {
+    const g = byId(d.roleGroups, id);
+    if (!g) return;
+    const holders = d.members.filter((m) => m.roleGroupIds.includes(id));
+    const msg =
+      holders.length > 0
+        ? `ロールグループ「${g.name}」を削除します。このグループを付与された成員 ${holders.length} 名からも外れます（各ロールは個別付与ぶんだけ残ります）。よろしいですか？`
+        : `ロールグループ「${g.name}」を削除しますか？`;
+    if (!confirm(msg)) return;
+    // 成員の付与から取り除いてからグループ本体を削除する
+    for (const m of holders) m.roleGroupIds = m.roleGroupIds.filter((gid) => gid !== id);
+    d.roleGroups.splice(d.roleGroups.findIndex((rg) => rg.id === id), 1);
+    void ctx.persist().then(render);
   }
 
   function delRole(id: string): void {

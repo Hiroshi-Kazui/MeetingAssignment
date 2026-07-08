@@ -30,7 +30,7 @@ export function membersView(el: HTMLElement, ctx: Ctx): void {
             .join(" ");
           return `<tr class="${m.status === "inactive" ? "row-muted" : ""}">
             <td>${esc(m.name)}</td>
-            <td>${m.gender === "M" ? "男" : "女"}</td>
+            <td>${m.gender === "M" ? "兄弟" : "姉妹"}</td>
             <td>${m.status === "active" ? '<span class="badge badge-green">在籍</span>' : '<span class="badge badge-gray">非活動・転出</span>'}</td>
             <td>${groups} <span style="font-size:13px;color:var(--muted)">${esc(roles)}</span></td>
             <td><button class="btn btn-sm" data-edit="${m.id}">編集</button></td>
@@ -59,6 +59,13 @@ export function membersView(el: HTMLElement, ctx: Ctx): void {
         <button class="btn btn-primary" id="add">＋ 成員を登録</button>
       </div>
       <div class="table-wrap"><table>
+        <colgroup>
+          <col style="width:18%">
+          <col style="width:10%">
+          <col style="width:12%">
+          <col style="width:50%">
+          <col style="width:10%">
+        </colgroup>
         <thead><tr><th>氏名</th><th>性別</th><th>状態</th><th>保持ロール（グループ由来含む）</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
@@ -68,7 +75,7 @@ export function membersView(el: HTMLElement, ctx: Ctx): void {
           <input type="text" id="e-name" style="width:100%" placeholder="例: 山田 健一"></div>
         <div class="field field-row">
           <div><label>性別</label>
-            <select id="e-gender"><option value="M">男</option><option value="F">女</option></select></div>
+            <select id="e-gender"><option value="M">兄弟</option><option value="F">姉妹</option></select></div>
           <div><label>状態</label>
             <select id="e-status"><option value="active">在籍</option><option value="inactive">非活動・転出</option></select></div>
         </div>

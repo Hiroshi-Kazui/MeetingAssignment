@@ -1,8 +1,10 @@
 /** S6 履歴インポート（過去の記入済み PDF） — 要件定義 §4.7 / §7 S6 */
-import { newId } from "../models";
+import { byId, newId } from "../models";
 import type { Ctx } from "../ui/router";
 import { pickAndReadFiles } from "../platform";
-import { extractHistoryFromPdf, type ExtractedEntry } from "../pdf/import";
+import { extractHistoryFromPdf, mapEntriesToAssignments, type ExtractedEntry } from "../pdf/import";
+import { saveAssignments } from "../logic/meetings";
+import { memberHasRole } from "../logic/priority";
 import { esc, fmtDate } from "../ui/format";
 
 export function importHistoryView(el: HTMLElement, ctx: Ctx): void {
@@ -125,22 +127,55 @@ export function importHistoryView(el: HTMLElement, ctx: Ctx): void {
 
         const dates = [...new Set(entries.map((e) => e.date))];
         const dupDates = dates.filter((dt) => d.history.some((h) => h.date === dt && !h.meetingId));
-        if (dupDates.length > 0) {
-          if (!confirm(`取り込み済みと重複する集会日（${dupDates.map(fmtDate).join("、")}）の履歴を上書きします。よろしいですか？`)) return;
+        const dupMeetings = dates.filter((dt) => {
+          const mt = d.meetings.find((m) => m.date === dt);
+          return mt && Object.keys(mt.assignments).length > 0;
+        });
+        const dupAll = [...new Set([...dupDates, ...dupMeetings])].sort();
+        if (dupAll.length > 0) {
+          if (!confirm(`取り込み済みと重複する集会日（${dupAll.map(fmtDate).join("、")}）の履歴・割当を上書きします。よろしいですか？`)) return;
           d.history = d.history.filter((h) => h.meetingId || !dupDates.includes(h.date));
           d.pairHistory = d.pairHistory.filter((p) => p.meetingId || !dupDates.includes(p.date));
         }
 
-        let count = 0;
-        const pairMap = new Map<string, { performer?: string; partner?: string; date: string }>();
+        // ロール付与（未保持なら）→ 割当画面の候補に出るように（§4.7）
         for (const e of entries) {
           if (!e.matchedId) continue;
-          d.history.push({ memberId: e.matchedId, roleId: e.roleId, date: e.date });
+          const mem = byId(d.members, e.matchedId);
+          if (mem && !memberHasRole(d, mem, e.roleId) && !mem.roleIds.includes(e.roleId)) {
+            mem.roleIds.push(e.roleId);
+          }
+        }
+
+        // 同じ日付の集会が取り込み済みなら、割当そのものをセットする（§4.7）。
+        // saveAssignments が meetingId 付きの履歴・ペア履歴・ステータスまで整合させる。
+        // 集会が無い日付（またはスロットに収まらなかった残り）は素の履歴として登録。
+        let count = 0;
+        let meetingCount = 0;
+        const rawEntries: ExtractedEntry[] = [];
+        for (const dt of dates) {
+          const dayEntries = entries.filter((e) => e.date === dt);
+          const mt = d.meetings.find((m) => m.date === dt);
+          if (mt) {
+            const { assignments, used } = mapEntriesToAssignments(mt, dayEntries);
+            saveAssignments(d, mt, assignments);
+            count += Object.keys(assignments).length;
+            meetingCount++;
+            dayEntries.forEach((e, i) => {
+              if (!used.has(i) && e.matchedId) rawEntries.push(e);
+            });
+          } else {
+            rawEntries.push(...dayEntries.filter((e) => e.matchedId));
+          }
+        }
+        const pairMap = new Map<string, { performer?: string; partner?: string; date: string }>();
+        for (const e of rawEntries) {
+          d.history.push({ memberId: e.matchedId!, roleId: e.roleId, date: e.date });
           count++;
           if (e.pairGroup) {
             const rec = pairMap.get(e.pairGroup) ?? { date: e.date };
-            if (e.pairIndex === 0) rec.performer = e.matchedId;
-            else rec.partner = e.matchedId;
+            if (e.pairIndex === 0) rec.performer = e.matchedId!;
+            else rec.partner = e.matchedId!;
             pairMap.set(e.pairGroup, rec);
           }
         }
@@ -150,7 +185,11 @@ export function importHistoryView(el: HTMLElement, ctx: Ctx): void {
           }
         }
         await ctx.persist();
-        alert(`${count} 件の担当実績を履歴に登録しました。今後の割り当て画面の並び順に反映されます。`);
+        alert(
+          `${count} 件の担当実績を登録しました。` +
+            (meetingCount > 0 ? `うち取り込み済みの ${meetingCount} 件の集会日には割り当てとして反映しました。` : "") +
+            `今後の割り当て画面の並び順にも反映されます。`
+        );
         entries = [];
         fileNames = [];
         render();

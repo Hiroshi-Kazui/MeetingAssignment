@@ -28,6 +28,7 @@ export const RID = {
   bibleReading: "r_bible_reading",
   student: "r_student",
   living: "r_living",
+  localNeeds: "r_local_needs",
   cbsConductor: "r_cbs_conductor",
   cbsReader: "r_cbs_reader",
 } as const;
@@ -35,19 +36,19 @@ export const RID = {
 export const IGNORE_TYPE = "__ignore__";
 
 export const TYPE_DEFS: TypeDef[] = [
-  { id: "chairman", label: "司会・開会", section: null,
+  { id: "chairman", label: "司会", section: null,
     slots: [{ roleId: RID.chairman, kind: "single", label: "司会" }] },
   { id: "prayer_open", label: "開会の祈り", section: null,
     slots: [{ roleId: RID.prayer, kind: "single", label: "祈り" }] },
-  { id: "treasures_talk", label: "宝の話（part1）", section: "treasures",
+  { id: "treasures_talk", label: "神の言葉の宝（話）", section: "treasures",
     slots: [{ roleId: RID.treasures, kind: "single", label: "話" }] },
-  { id: "gems", label: "宝石（part2）", section: "treasures",
+  { id: "gems", label: "宝石を探し出す", section: "treasures",
     slots: [{ roleId: RID.gems, kind: "single", label: "話" }] },
   { id: "bible_reading", label: "聖書朗読（part3）", section: "treasures",
     slots: [{ roleId: RID.bibleReading, kind: "single", label: "生徒" }] },
   { id: "ministry_talk", label: "野外奉仕に励む：話", section: "ministry",
     slots: [{ roleId: RID.student, kind: "performer", label: "話" }] },
-  { id: "ministry_demo", label: "野外奉仕に励む：実演（話以外）", section: "ministry",
+  { id: "ministry_demo", label: "野外奉仕に励む：実演", section: "ministry",
     slots: [
       { roleId: RID.student, kind: "performer", label: "生徒" },
       { roleId: RID.student, kind: "partner", label: "相手" },
@@ -55,7 +56,7 @@ export const TYPE_DEFS: TypeDef[] = [
   { id: "living_discussion", label: "クリスチャンとして生活する：討議", section: "living",
     slots: [{ roleId: RID.living, kind: "single", label: "討議" }] },
   { id: "local_needs", label: "クリスチャンとして生活する：会衆の必要", section: "living",
-    slots: [{ roleId: RID.living, kind: "single", label: "会衆の必要" }] },
+    slots: [{ roleId: RID.localNeeds, kind: "single", label: "会衆の必要" }] },
   { id: "cbs", label: "会衆聖書研究（司会＋朗読）", section: "living",
     slots: [
       { roleId: RID.cbsConductor, kind: "single", label: "司会" },
@@ -154,12 +155,13 @@ function detectByKeywords(c: string, eLabel: string, section: Section): DetectRe
   if (section === "living" && /奉仕の話/.test(c)) return r("service_talk");
   if (/会衆の?聖書研究/.test(c)) return r("cbs");
   if (/聖書朗読/.test(c)) return r("bible_reading");
-  if (/開会のことば|開会の言葉/.test(c)) return r("chairman");
-  if (/閉会のことば|閉会の言葉/.test(c)) return r(IGNORE_TYPE); // 司会者が続けて担当（割当なし）
+  // 祈りは「開会/閉会の言葉」判定より優先。開会の言葉行に E列「祈り：」が付く形式
+  // （開会の祈り）を拾うため。C列に「開会」を含めば開会、それ以外（歌番号など）は閉会。
   if (/祈り/.test(c) || /祈り/.test(eLabel)) {
-    // 開会/閉会の区別は単独行からは難しいため既定は閉会。レビューで修正可能
     return r(/開会/.test(c) ? "prayer_open" : "prayer_close");
   }
+  if (/開会のことば|開会の言葉/.test(c)) return r("chairman");
+  if (/閉会のことば|閉会の言葉/.test(c)) return r(IGNORE_TYPE); // 司会者が続けて担当（割当なし）
 
   const numMatch = c.match(/^\s*([0-9０-９]+)[.．]/);
   if (numMatch) {
@@ -183,8 +185,10 @@ function detectByKeywords(c: string, eLabel: string, section: Section): DetectRe
   if (section === "living" && /会衆の?必要/.test(c)) return r("local_needs");
   if (section === "living" && /討議|話/.test(c)) return r("living_discussion");
 
-  // 歌のみの行は無視
-  if (/^歌\s*[0-9０-９]/.test(c) || /^[0-9０-９]+番/.test(c)) return r(IGNORE_TYPE);
+  // 歌の行は無視。実データでは C 列が「歌番号（裸の整数）」のみのことが多く、
+  // 「歌xxx番」書式も含めてまとめて弾く（例: 106 / 109 → 賛美の歌）。
+  if (/^歌\s*[0-9０-９]/.test(c) || /^[0-9０-９]+番/.test(c) || /^[0-9０-９]+$/.test(c))
+    return r(IGNORE_TYPE);
 
   return null;
 }

@@ -59,9 +59,22 @@ export function assignView(el: HTMLElement, ctx: Ctx, params: URLSearchParams): 
         gender: brothersOnly[slot.key] ? "M" : null,
       }).map((c) => ({
         id: c.member.id,
-        text: `${c.member.name}（前回 ${fmtDate(c.last)}）`,
+        text: `${c.member.name}（${fmtDate(c.last)}）`,
       }));
     }
+    // この画面で既に選ばれている成員（保存前の draft を含む）は最下位へ送る（§4.6）。
+    // 履歴日付ベースだと過去日の集会で効かないため、明示的に並び替える
+    const chosen = new Set(
+      Object.entries(draft)
+        .filter(([k]) => k !== slot.key)
+        .map(([, v]) => v)
+    );
+    list = [
+      ...list.filter((o) => !chosen.has(o.id)),
+      ...list
+        .filter((o) => chosen.has(o.id))
+        .map((o) => ({ ...o, text: o.text.replace(/）$/, "・選択済み）") })),
+    ];
     // 絞り込みで候補から外れても選択済みの成員は黙って消さない
     if (currentVal && !list.some((o) => o.id === currentVal)) {
       list.push({ id: currentVal, text: `${memberName(currentVal)}（絞り込み対象外）` });
@@ -106,8 +119,10 @@ export function assignView(el: HTMLElement, ctx: Ctx, params: URLSearchParams): 
         const showAllCtl = isPartner
           ? `<div class="partner-opts"><label style="margin:0"><input type="checkbox" data-showall="${s.key}" ${showAll[s.key] ? "checked" : ""}> 全員表示（異性・夫婦等も含める）</label></div>`
           : "";
+        // 「話」（ministry_talk / part6 の話の回）は兄弟のみ固定なのでチェックボックスを出さない
+        const isTalk = p.typeId === "ministry_talk" || p.omitPartner;
         const brothersCtl =
-          p.section === "ministry" && !isPartner
+          p.section === "ministry" && !isPartner && !isTalk
             ? `<div class="partner-opts"><label style="margin:0"><input type="checkbox" data-brothers="${s.key}" ${brothersOnly[s.key] ? "checked" : ""}> 兄弟のみ</label></div>`
             : "";
         return `<div>
@@ -234,10 +249,8 @@ export function assignView(el: HTMLElement, ctx: Ctx, params: URLSearchParams): 
       const r = await ctx.persist();
       setDirty(false);
       const n = Object.keys(draft).length;
-      const notice = el.querySelector<HTMLElement>("#notice")!;
-      notice.style.display = "";
-      notice.textContent = `保存しました（${n} / ${totalSlotCount(meeting)} スロット）。履歴に反映され、次回から優先度に反映されます。${r.idb ? "" : "（警告: アプリ内DBへの保存に失敗）"}`;
       render();
+      alert(`保存しました（${n} / ${totalSlotCount(meeting)} スロット）。${r.idb ? "" : "\n警告: アプリ内DBへの保存に失敗しました。"}`);
     };
   }
 
@@ -249,7 +262,7 @@ export function assignView(el: HTMLElement, ctx: Ctx, params: URLSearchParams): 
       if (memberId) draft[key] = memberId;
       else delete draft[key];
       setDirty(true);
-      if (sel.dataset.kind === "performer") render(); // 相手役の候補順が変わる
+      render(); // 未保存の選択も他プルダウンの並び順に反映する（§4.6）
     };
 
     // 同一日の重複は確認のみ（§6-7）

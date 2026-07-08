@@ -58,6 +58,13 @@ export interface Program {
 
 export type MeetingStatus = "none" | "partial" | "done" | "exported";
 
+/** 歌の番号（開会・中間・閉会）。エクスポートのシート生成で使用（§4.5） */
+export interface MeetingSongs {
+  open?: number;
+  middle?: number;
+  close?: number;
+}
+
 export interface Meeting {
   id: string;
   date: string; // ISO YYYY-MM-DD
@@ -66,6 +73,8 @@ export interface Meeting {
   programs: Program[];
   assignments: Record<string, string>; // slotKey -> memberId（保存済み）
   srcFileName?: string; // 取り込み元ファイル名（参考表示用）
+  scripture?: string; // 週の聖書範囲（例: "エレミヤ 31章"。日付行 D列由来）
+  songs?: MeetingSongs;
 }
 
 /** 担当履歴（保存済み割当＋PDF インポート由来） */

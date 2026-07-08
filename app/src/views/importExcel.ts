@@ -2,6 +2,7 @@
 import type { Ctx } from "../ui/router";
 import { pickAndReadFiles } from "../platform";
 import { parseWorkbook, draftToMeeting, type MeetingDraft } from "../excel/import";
+import { saveAssignments } from "../logic/meetings";
 import { IGNORE_TYPE, TYPE_DEFS, normalizeSignature, typeDef } from "../logic/programs";
 import { esc, fmtDateFull, CIRCUIT_BADGE } from "../ui/format";
 
@@ -82,7 +83,11 @@ export function importExcelView(el: HTMLElement, ctx: Ctx): void {
     const sections = drafts
       .map((dr, di) => {
         const rows = dr.rows
-          .map((r, ri) => {
+          .map((r, ri) => ({ r, ri }))
+          // 自動で「割当対象外・無視」になった行（歌番号・開会/閉会の言葉など）は
+          // レビュー表に出さずスキップする。未分類（auto=false）は要選択なので残す。
+          .filter(({ r }) => !(r.typeId === IGNORE_TYPE && r.auto))
+          .map(({ r, ri }) => {
             const def = typeDef(r.typeId);
             const slotsDesc = def
               ? def.noAssign
@@ -172,8 +177,22 @@ export function importExcelView(el: HTMLElement, ctx: Ctx): void {
       for (const dr of drafts) {
         const mt = draftToMeeting(dr, fileName);
         const idx = d.meetings.findIndex((m) => m.date === dr.date);
-        if (idx >= 0) d.meetings.splice(idx, 1, mt);
-        else d.meetings.push(mt);
+        if (idx >= 0) {
+          // 上書き時は既存の割当を引き継ぐ（同一構造ならスロットキーが一致する）。
+          // saveAssignments が旧集会由来の履歴を除去し新 meetingId で再登録する。
+          const old = d.meetings[idx];
+          const carried: Record<string, string> = {};
+          const validKeys = new Set(mt.programs.flatMap((p) => p.slots.map((s) => s.key)));
+          for (const [k, v] of Object.entries(old.assignments)) {
+            if (validKeys.has(k)) carried[k] = v;
+          }
+          d.history = d.history.filter((h) => h.meetingId !== old.id);
+          d.pairHistory = d.pairHistory.filter((p) => p.meetingId !== old.id);
+          d.meetings.splice(idx, 1, mt);
+          if (Object.keys(carried).length > 0) saveAssignments(d, mt, carried);
+        } else {
+          d.meetings.push(mt);
+        }
       }
       await ctx.persist();
       alert(`${drafts.length} 件の集会日を取り込みました。`);

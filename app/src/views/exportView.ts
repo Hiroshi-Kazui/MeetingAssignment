@@ -8,17 +8,14 @@ import { esc, fmtDate, fmtDateFull } from "../ui/format";
 
 export function exportView(el: HTMLElement, ctx: Ctx): void {
   const d = ctx.data;
-  let template: PickedFile | null = null;
-  const checked = new Set<string>(
-    sortedMeetings(d)
-      .filter((m) => Object.keys(m.assignments).length > 0)
-      .map((m) => m.date)
-  );
+  let template: PickedFile | null = null; // 取り込み元と同じ期間の Excel を毎回選択する
+  const checked = new Set<string>();
   let donePath: string | null = null;
   let doneShown = false;
 
   function render(): void {
-    const meetings = sortedMeetings(d);
+    // 一覧表示は新しい日付から（書き出し対象の抽出は sortedMeetings の昇順のまま使う）
+    const meetings = [...sortedMeetings(d)].reverse();
     const dateChecks = meetings
       .map((mt) => {
         const assigned = Object.keys(mt.assignments).length;
@@ -37,7 +34,7 @@ export function exportView(el: HTMLElement, ctx: Ctx): void {
       <p class="page-desc">割り当て済みの内容を、元の Excel（テンプレート）に名前入りで書き戻し、<strong>別のファイルとして</strong>保存します。元のファイルはそのまま残ります。</p>
       <div class="panel">
         <div class="field">
-          <label>書き戻し先のテンプレート Excel</label>
+          <label>書き戻し先のテンプレート Excel（取り込み時と同じファイルを選択）</label>
           <button class="btn" id="pick">ファイルを選択…</button>
           <span style="margin-left:10px; font-size:14px; color:var(--muted)">${template ? `<code class="path">${esc(template.name)}</code>` : ""}</span>
         </div>

@@ -4,7 +4,7 @@
  * ここに集約してあるので、実物で崩れた場合はこのファイルだけ直せばよい。
  */
 import type ExcelJS from "exceljs";
-import type { Meeting, Section, TypeRule } from "../models";
+import type { Meeting, MeetingSongs, Section, TypeRule } from "../models";
 import { newId } from "../models";
 import { loadExcelJS } from "./exceljs";
 import {
@@ -16,6 +16,7 @@ import {
 } from "../logic/programs";
 
 /** 列位置（1始まり）。サンプル Excel §11 に基づく */
+const COL_A = 1; // 集会日（A列にのみ入る）
 const COL_C = 3; // 項目名（キーワード判定の主対象）
 const COL_E = 5; // 担当ラベル（司会者：/生徒： など。不完全）
 
@@ -34,6 +35,8 @@ export interface MeetingDraft {
   sheet: string;
   circuit: boolean; // 奉仕の話を検出した週
   rows: DetectedRow[];
+  scripture?: string; // 日付行 D列（例: "エレミヤ 31章"）
+  songs: MeetingSongs; // 歌番号（開会・中間・閉会）。エクスポートのシート生成に使用
 }
 
 /** セル値をプレーン文字列へ（richText・数式結果対応） */
@@ -54,26 +57,30 @@ function cellText(cell: ExcelJS.Cell): string {
 const toIso = (y: number, m: number, d: number): string =>
   `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
-/** 行内のどこかに日付があれば ISO で返す（Date セル / "YYYY年M月D日" / "M月D日"） */
+/**
+ * 集会日を返す（Date セル / "YYYY年M月D日" / "M月D日"）。
+ * 集会日は A列にのみ入るため A列だけを見る。行内の他列テキスト（例: C列の
+ * 「7.3月7日…のキャンペーン」）を日付と誤検出して幻の集会を作らないため。
+ */
 function findDateInRow(row: ExcelJS.Row, fallbackYear: number): string | null {
-  let found: string | null = null;
-  row.eachCell({ includeEmpty: false }, (cell) => {
-    if (found) return;
-    const v = cell.value;
-    if (v instanceof Date) {
-      found = toIso(v.getFullYear(), v.getMonth() + 1, v.getDate());
-      return;
+  const cell = row.getCell(COL_A);
+  const v = cell.value;
+  if (v instanceof Date) {
+    // Excel の「時刻」セル（開始時刻など）は 1899-12-30 を基点とする通日で
+    // Date 化されるため、そのままだと集会日付（例: 1899-12-30）と誤認する。
+    // 実データは西暦の日付セルなので、1900 年より前は時刻値として無視する。
+    // ExcelJS は日付を UTC 00:00 で読むため UTC ゲッタで日付を取り出す。
+    if (v.getUTCFullYear() >= 1900) {
+      return toIso(v.getUTCFullYear(), v.getUTCMonth() + 1, v.getUTCDate());
     }
-    const t = cellText(cell);
-    let m = t.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
-    if (m) {
-      found = toIso(Number(m[1]), Number(m[2]), Number(m[3]));
-      return;
-    }
-    m = t.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
-    if (m) found = toIso(fallbackYear, Number(m[1]), Number(m[2]));
-  });
-  return found;
+    return null;
+  }
+  const t = cellText(cell);
+  let m = t.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+  if (m) return toIso(Number(m[1]), Number(m[2]), Number(m[3]));
+  m = t.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+  if (m) return toIso(fallbackYear, Number(m[1]), Number(m[2]));
+  return null;
 }
 
 function sectionHeading(cText: string): Section | undefined {
@@ -101,13 +108,19 @@ export async function parseWorkbook(
   for (const ws of wb.worksheets) {
     let current: MeetingDraft | null = null;
     let currentSection: Section = null;
+    let afterClosing = false; // 「閉会の言葉」行より後か（閉会の歌の判定用）
     for (let r = 1; r <= ws.rowCount; r++) {
       const row = ws.getRow(r);
       const date = findDateInRow(row, fallbackYear);
       if (date) {
         fallbackYear = Number(date.slice(0, 4));
         currentSection = null;
-        current = { date, sheet: ws.name, circuit: false, rows: [] };
+        afterClosing = false;
+        current = {
+          date, sheet: ws.name, circuit: false, rows: [],
+          scripture: cellText(row.getCell(4)).trim() || undefined,
+          songs: {},
+        };
         drafts.push(current);
         // 日付行の E列に司会者ラベルがある場合はここが司会スロット（§11）
         const eOnDate = cellText(row.getCell(COL_E)).trim();
@@ -128,6 +141,15 @@ export async function parseWorkbook(
         currentSection = heading;
         continue;
       }
+      // 歌番号（C列が数字のみ）を記録（§4.5: エクスポートのシート生成に使用）。
+      // 行自体は従来どおり検出フローへ（祈りラベル付きなら祈りスロットになる）
+      if (/^[0-9０-９]+$/.test(cText)) {
+        const num = Number(cText.replace(/[０-９]/g, (ch) => String("０１２３４５６７８９".indexOf(ch))));
+        if (currentSection === null) current.songs.open = num;
+        else if (afterClosing) current.songs.close = num;
+        else current.songs.middle = num;
+      }
+      if (/閉会の(ことば|言葉)/.test(cText)) afterClosing = true;
       const eText = cellText(row.getCell(COL_E)).trim();
 
       const det = detectType(cText, eText, typeRules, currentSection);
@@ -169,10 +191,16 @@ export function draftToMeeting(draft: MeetingDraft, srcFileName: string): Meetin
     programs,
     assignments: {},
     srcFileName,
+    scripture: draft.scripture,
+    songs: draft.songs,
   };
 }
 
 function displayName(r: DetectedRow): string {
   if (r.cText.startsWith("（日付行）")) return typeDef(r.typeId)?.label ?? r.cText;
+  // 祈りの行は C列が歌番号だけ（例: "27"）なので、型ラベルを表示名にする
+  if (r.typeId === "prayer_open" || r.typeId === "prayer_close") {
+    return typeDef(r.typeId)?.label ?? r.cText;
+  }
   return r.cText;
 }

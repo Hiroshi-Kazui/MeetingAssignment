@@ -56,7 +56,7 @@ export function parseMemberCsv(text: string, data: AppData): MemberCsvParseResul
     const rowErrors: string[] = [];
     if (!name) rowErrors.push("氏名が空です");
     const gender = parseGender(genderRaw);
-    if (!gender) rowErrors.push("性別は「男」または「女」で入力してください");
+    if (!gender) rowErrors.push("性別は「兄弟」または「姉妹」で入力してください");
 
     const duplicateInFile = name ? seenNames.has(name) : false;
     if (duplicateInFile) rowErrors.push("CSV内で氏名が重複しています");
@@ -119,8 +119,8 @@ function normalizeHeader(value: string): string {
 
 function parseGender(value: string): Gender | null {
   const v = value.trim().toLowerCase();
-  if (v === "男" || v === "男性" || v === "m" || v === "male") return "M";
-  if (v === "女" || v === "女性" || v === "f" || v === "female") return "F";
+  if (v === "兄弟" || v === "男" || v === "男性" || v === "m" || v === "male") return "M";
+  if (v === "姉妹" || v === "女" || v === "女性" || v === "f" || v === "female") return "F";
   return null;
 }
 

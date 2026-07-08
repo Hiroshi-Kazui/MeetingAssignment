@@ -5,7 +5,8 @@ import { totalSlotCount } from "../logic/programs";
 import { CIRCUIT_BADGE, STATUS_BADGE, esc, fmtDateFull } from "../ui/format";
 
 export function homeView(el: HTMLElement, ctx: Ctx): void {
-  const meetings = sortedMeetings(ctx.data);
+  // 一覧表示は新しい日付から（割当画面の前/次ナビは昇順のまま使うため sortedMeetings 自体は変えない）
+  const meetings = [...sortedMeetings(ctx.data)].reverse();
 
   const rows = meetings
     .map((mt) => {

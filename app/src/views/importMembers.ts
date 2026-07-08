@@ -30,7 +30,7 @@ export function importMembersView(el: HTMLElement, ctx: Ctx): void {
             return `<tr class="${r.errors.length > 0 ? "row-warn" : ""}">
               <td>${r.rowNumber}</td>
               <td>${esc(r.name)}</td>
-              <td>${esc(r.genderRaw)}${r.gender ? ` <span style="color:var(--muted)">(${r.gender === "M" ? "男" : "女"})</span>` : ""}</td>
+              <td>${esc(r.genderRaw)}${r.gender ? ` <span style="color:var(--muted)">(${r.gender === "M" ? "兄弟" : "姉妹"})</span>` : ""}</td>
               <td>在籍</td>
               <td>${status}</td>
             </tr>`;
@@ -46,7 +46,7 @@ export function importMembersView(el: HTMLElement, ctx: Ctx): void {
       <h1>成員CSV取り込み</h1>
       <p class="page-desc">CSVから成員をまとめて登録します。必要な列は「氏名」と「性別」だけです。状態は取り込み時に在籍になります。</p>
       <div class="panel">
-        <p style="margin-top:0">CSV形式: <code class="path">氏名,性別</code>。性別は <code class="path">男</code> / <code class="path">女</code> で入力してください。</p>
+        <p style="margin-top:0">CSV形式: <code class="path">氏名,性別</code>。性別は <code class="path">兄弟</code> / <code class="path">姉妹</code>（<code class="path">男</code> / <code class="path">女</code> も可）で入力してください。</p>
         <button class="btn btn-primary" id="pick">CSVファイルを選択…</button>
         <span style="margin-left:10px; font-size:14px; color:var(--muted)">${fileName ? `<code class="path">${esc(fileName)}</code> を選択しました` : ""}</span>
       </div>
