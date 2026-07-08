@@ -1,7 +1,7 @@
 /** エントリポイント: 状態ロード → ハッシュルーティングで S1〜S9 を描画 */
 import "./styles.css";
 import { loadAppData, persist } from "./state";
-import { parseHash, renderSidebar, type Ctx, type View } from "./ui/router";
+import { parseHash, renderSidebar, bindSidebarToggle, syncSidebarForRoute, type Ctx, type View } from "./ui/router";
 import { homeView } from "./views/home";
 import { assignView } from "./views/assign";
 import { membersView } from "./views/members";
@@ -47,8 +47,11 @@ async function boot(): Promise<void> {
   function renderRoute(): void {
     const { route, params } = parseHash();
     const view = VIEWS[route] ?? VIEWS.home;
+    const activeRoute = route in VIEWS ? route : "home";
+    syncSidebarForRoute(activeRoute);
     dirtyGuard = null;
-    root.innerHTML = `${renderSidebar(route in VIEWS ? route : "home")}<main id="view"></main>`;
+    root.innerHTML = `${renderSidebar(activeRoute)}<main id="view"></main>`;
+    bindSidebarToggle(root, activeRoute);
     view(root.querySelector<HTMLElement>("#view")!, ctx, params);
   }
 

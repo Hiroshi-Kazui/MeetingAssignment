@@ -68,6 +68,26 @@ body {
   color: #fff;
   font-weight: 600;
 }
+.sidebar nav .nav-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px 16px;
+  background: none;
+  border: none;
+  color: #c8d2df;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.sidebar nav .nav-toggle:hover { background: rgba(255,255,255,.07); color: #fff; }
+.sidebar nav .nav-toggle.open { color: #fff; }
+.sidebar nav .nav-toggle .gear { margin-right: 6px; }
+.sidebar nav .nav-toggle .chev { font-size: 11px; color: #8a97a8; }
+.sidebar nav .nav-children a { padding-left: 34px; font-size: 13px; }
 .sidebar nav .nav-section {
   font-size: 11px;
   color: #8a97a8;
