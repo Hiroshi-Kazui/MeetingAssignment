@@ -50,6 +50,7 @@ export interface Program {
   section: Section;
   noAssign: boolean; // 巡回監督担当など割当対象外
   omitPartner: boolean; // part6「話」の回: 相手役スロット省略
+  gbTalk?: boolean; // 会衆の必要が統治体の話（動画のみ）の回: 司会なし・割当対象外
   slots: Slot[];
   /** エクスポート書き戻し先（取り込み元のシート名・行番号） */
   srcSheet?: string;

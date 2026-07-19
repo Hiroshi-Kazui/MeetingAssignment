@@ -36,7 +36,7 @@ export async function exportWorkbook(
 
   for (const mt of meetings) {
     for (const prog of mt.programs) {
-      if (prog.noAssign || prog.slots.length === 0) continue;
+      if (prog.noAssign || prog.gbTalk || prog.slots.length === 0) continue; // 統治体の話は割当なし
       if (!prog.srcSheet || !prog.srcRow) {
         warnings.push({ date: mt.date, message: `${prog.name}: 書き戻し先が不明のためスキップ` });
         continue;

@@ -3,7 +3,7 @@ import type { Meeting, Slot } from "../models";
 import { byId } from "../models";
 import type { Ctx } from "../ui/router";
 import { candidatesFor, partnerCandidatesFor } from "../logic/priority";
-import { saveAssignments, sortedMeetings } from "../logic/meetings";
+import { calcStatus, saveAssignments, sortedMeetings } from "../logic/meetings";
 import { setCircuit, totalSlotCount } from "../logic/programs";
 import { CIRCUIT_BADGE, STATUS_BADGE, esc, fmtDate, fmtDateFull } from "../ui/format";
 
@@ -108,19 +108,32 @@ export function assignView(el: HTMLElement, ctx: Ctx, params: URLSearchParams): 
       }
 
       const canTalk = p.typeId === "demo6";
+      const canGbTalk = p.typeId === "local_needs";
+      const gbTalkCtl = canGbTalk
+        ? `<div class="partner-opts"><label style="margin:0"><input type="checkbox" data-gbtalk="${p.key}" ${p.gbTalk ? "checked" : ""}> 統治体の話（動画のみ・司会なし）</label></div>`
+        : "";
       const cells = p.slots.map((s) => {
         const isPartner = s.kind === "partner";
         if (isPartner && p.omitPartner) {
+          const reason =
+            p.typeId === "ministry_demo" ? "（兄弟のみのため相手なし）" : "（話の回のため省略）";
           return `<div><div class="slot-kind">${esc(s.label)}</div>
-            <select disabled><option>（話の回のため省略）</option></select></div>`;
+            <select disabled><option>${reason}</option></select></div>`;
+        }
+        if (p.gbTalk) {
+          return `<div><div class="slot-kind">${esc(s.label)}</div>
+            <select disabled><option>（統治体の話・司会なし）</option></select>
+            ${gbTalkCtl}</div>`;
         }
         const opts = optionsFor(p, s);
         const disabled = opts === null;
         const showAllCtl = isPartner
           ? `<div class="partner-opts"><label style="margin:0"><input type="checkbox" data-showall="${s.key}" ${showAll[s.key] ? "checked" : ""}> 全員表示（異性・夫婦等も含める）</label></div>`
           : "";
-        // 「話」（ministry_talk / part6 の話の回）は兄弟のみ固定なのでチェックボックスを出さない
-        const isTalk = p.typeId === "ministry_talk" || p.omitPartner;
+        // 「話」（ministry_talk / part6 の話の回）は兄弟のみ固定なのでチェックボックスを出さない。
+        // 実演（ministry_demo）は「兄弟のみ」で相手役を省略するため、省略後もチェックは出し続ける。
+        const isTalk =
+          p.typeId === "ministry_talk" || (p.omitPartner && p.typeId !== "ministry_demo");
         const brothersCtl =
           p.section === "ministry" && !isPartner && !isTalk
             ? `<div class="partner-opts"><label style="margin:0"><input type="checkbox" data-brothers="${s.key}" ${brothersOnly[s.key] ? "checked" : ""}> 兄弟のみ</label></div>`
@@ -130,7 +143,7 @@ export function assignView(el: HTMLElement, ctx: Ctx, params: URLSearchParams): 
           <select data-slot="${s.key}" data-kind="${s.kind}" ${disabled ? "disabled" : ""}>
             ${disabled ? "<option>（先に生徒を選択）</option>" : opts}
           </select>
-          ${showAllCtl}${brothersCtl}
+          ${showAllCtl}${brothersCtl}${gbTalkCtl}
         </div>`;
       });
       while (cells.length < 2) cells.push("<div></div>");
@@ -150,7 +163,11 @@ export function assignView(el: HTMLElement, ctx: Ctx, params: URLSearchParams): 
       <div class="meeting-header">
         <button class="btn" id="prev" ${idx === 0 ? "disabled" : ""}>◀ 前の集会日</button>
         <span class="date">${fmtDateFull(meeting.date)}</span>
-        ${STATUS_BADGE[meeting.status]}
+        ${
+          meeting.status === "exported"
+            ? `<button id="unexport" class="badge badge-blue" style="cursor:pointer;border:none;font:inherit" title="クリックでエクスポート済みの記録だけ外します（割当は残ります）">エクスポート済み ✕</button>`
+            : STATUS_BADGE[meeting.status]
+        }
         <label style="margin:0 0 0 8px"><input type="checkbox" id="circuit-toggle" ${meeting.circuit ? "checked" : ""}> 巡回訪問週</label>
         ${meeting.circuit ? CIRCUIT_BADGE : ""}
         <span id="unsaved" style="${dirty ? "" : "display:none"}"><span class="unsaved-dot"></span> 未保存</span>
@@ -175,6 +192,14 @@ export function assignView(el: HTMLElement, ctx: Ctx, params: URLSearchParams): 
         <div class="dialog-actions">
           <button class="btn" id="clear-cancel">キャンセル</button>
           <button class="btn btn-primary" id="clear-ok">全て解除する</button>
+        </div>
+      </dialog>
+      <dialog id="unexport-dialog">
+        <h3>エクスポート済みの記録を外す</h3>
+        <p style="font-size:14px">この集会日の「エクスポート済み」の記録だけを外します。割り当ての内容はそのまま残ります。よろしいですか？</p>
+        <div class="dialog-actions">
+          <button class="btn" id="unexport-cancel">キャンセル</button>
+          <button class="btn btn-primary" id="unexport-ok">記録を外す</button>
         </div>
       </dialog>`;
     bind();
@@ -209,7 +234,16 @@ export function assignView(el: HTMLElement, ctx: Ctx, params: URLSearchParams): 
     });
     el.querySelectorAll<HTMLInputElement>("[data-brothers]").forEach((cb) => {
       cb.onchange = () => {
-        brothersOnly[cb.dataset.brothers!] = cb.checked;
+        const key = cb.dataset.brothers!;
+        brothersOnly[key] = cb.checked;
+        // 野外奉仕の実演で「兄弟のみ」→ 相手役は不要（相手役スロットを省略）
+        const prog = meeting.programs.find((p) => p.slots.some((s) => s.key === key));
+        if (prog && prog.typeId === "ministry_demo") {
+          prog.omitPartner = cb.checked;
+          const partner = prog.slots.find((s) => s.kind === "partner");
+          if (cb.checked && partner) delete draft[partner.key];
+          setDirty(true);
+        }
         render();
       };
     });
@@ -223,6 +257,18 @@ export function assignView(el: HTMLElement, ctx: Ctx, params: URLSearchParams): 
         const partner = prog.slots.find((s) => s.kind === "partner");
         if (perf) brothersOnly[perf.key] = cb.checked;
         if (cb.checked && partner) delete draft[partner.key];
+        setDirty(true);
+        render();
+      };
+    });
+
+    // 「統治体の話」トグル: 動画のみ・司会なし → 会衆の必要スロットを割当対象外にする
+    el.querySelectorAll<HTMLInputElement>("[data-gbtalk]").forEach((cb) => {
+      cb.onchange = () => {
+        const prog = meeting.programs.find((p) => p.key === cb.dataset.gbtalk);
+        if (!prog) return;
+        prog.gbTalk = cb.checked;
+        if (cb.checked) for (const s of prog.slots) delete draft[s.key];
         setDirty(true);
         render();
       };
@@ -272,6 +318,21 @@ export function assignView(el: HTMLElement, ctx: Ctx, params: URLSearchParams): 
         render();
       };
     };
+
+    // エクスポート済みバッジのクリック: 割当は残したまま「エクスポート済み」記録だけ外す
+    const unexportBtn = el.querySelector<HTMLButtonElement>("#unexport");
+    if (unexportBtn)
+      unexportBtn.onclick = () => {
+        const dlg = el.querySelector<HTMLDialogElement>("#unexport-dialog")!;
+        dlg.showModal();
+        el.querySelector<HTMLButtonElement>("#unexport-cancel")!.onclick = () => dlg.close();
+        el.querySelector<HTMLButtonElement>("#unexport-ok")!.onclick = async () => {
+          dlg.close();
+          meeting.status = calcStatus(meeting); // 保存済み割当から再計算（exported → 割当済み等）
+          await ctx.persist();
+          render();
+        };
+      };
 
     el.querySelector<HTMLButtonElement>("#save")!.onclick = async () => {
       saveAssignments(ctx.data, meeting, draft);

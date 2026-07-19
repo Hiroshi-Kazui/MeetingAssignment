@@ -17,6 +17,7 @@ export interface TypeDef {
   noAssign?: boolean; // 割当対象外（巡回監督の話など）
   circuitMarker?: boolean; // この型を含む日は巡回訪問週
   allowOmitPartner?: boolean; // part6「話」: 相手役省略可
+  allowGbTalk?: boolean; // 会衆の必要「統治体の話」: 動画のみ・司会省略可
 }
 
 /** 既定ロール ID（seed と一致。S3 で名称変更可） */
@@ -56,6 +57,7 @@ export const TYPE_DEFS: TypeDef[] = [
   { id: "living_discussion", label: "クリスチャンとして生活する：討議", section: "living",
     slots: [{ roleId: RID.living, kind: "single", label: "討議" }] },
   { id: "local_needs", label: "クリスチャンとして生活する：会衆の必要", section: "living",
+    allowGbTalk: true,
     slots: [{ roleId: RID.localNeeds, kind: "single", label: "会衆の必要" }] },
   { id: "cbs", label: "会衆聖書研究（司会＋朗読）", section: "living",
     slots: [
@@ -218,7 +220,7 @@ export function renumberPrograms(programs: Program[]): void {
 /** 集会の有効スロット数（omitPartner の相手役は数えない） */
 export function totalSlotCount(meeting: Meeting): number {
   return meeting.programs.reduce((n, p) => {
-    if (p.noAssign) return n;
+    if (p.noAssign || p.gbTalk) return n; // 統治体の話（動画のみ）は割当対象外
     return n + p.slots.filter((s) => !(p.omitPartner && s.kind === "partner")).length;
   }, 0);
 }
