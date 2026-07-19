@@ -7,7 +7,29 @@ on:
       - 'v*'
 
 jobs:
+  # 同一バージョンを何度もビルドしても衝突しないよう、ビルド前に
+  # 既存の下書きリリース(同一タグ)を削除してアセットをまっさらにする。
+  cleanup-draft:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: delete existing draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -pe "require('./app/src-tauri/tauri.conf.json').version")
+          TAG="app-v${VERSION}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Deleting existing draft release $TAG"
+            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes
+          else
+            echo "No existing release $TAG"
+          fi
+
   publish-tauri:
+    needs: cleanup-draft
     permissions:
       contents: write
     strategy:
