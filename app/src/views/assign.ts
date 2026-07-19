@@ -155,6 +155,7 @@ export function assignView(el: HTMLElement, ctx: Ctx, params: URLSearchParams): 
         ${meeting.circuit ? CIRCUIT_BADGE : ""}
         <span id="unsaved" style="${dirty ? "" : "display:none"}"><span class="unsaved-dot"></span> 未保存</span>
         <span class="spacer" style="flex:1"></span>
+        <button class="btn" id="clear-all" ${Object.keys(draft).length === 0 && meeting.status === "none" ? "disabled" : ""}>全て解除</button>
         <button class="btn" id="next" ${idx === meetings.length - 1 ? "disabled" : ""}>次の集会日 ▶</button>
         <button class="btn btn-primary" id="save">保存</button>
       </div>
@@ -166,6 +167,14 @@ export function assignView(el: HTMLElement, ctx: Ctx, params: URLSearchParams): 
         <div class="dialog-actions">
           <button class="btn" id="dup-cancel">選び直す</button>
           <button class="btn btn-primary" id="dup-ok">このまま割り当てる</button>
+        </div>
+      </dialog>
+      <dialog id="clear-dialog">
+        <h3>この集会日の割り当てを全て解除</h3>
+        <p id="clear-msg" style="font-size:14px"></p>
+        <div class="dialog-actions">
+          <button class="btn" id="clear-cancel">キャンセル</button>
+          <button class="btn btn-primary" id="clear-ok">全て解除する</button>
         </div>
       </dialog>`;
     bind();
@@ -242,6 +251,26 @@ export function assignView(el: HTMLElement, ctx: Ctx, params: URLSearchParams): 
       await ctx.persist(); // 構造変更は即永続化
       setDirty(true);
       render();
+    };
+
+    el.querySelector<HTMLButtonElement>("#clear-all")!.onclick = () => {
+      if (Object.keys(draft).length === 0 && meeting.status === "none") return;
+      const dlg = el.querySelector<HTMLDialogElement>("#clear-dialog")!;
+      el.querySelector<HTMLElement>("#clear-msg")!.textContent =
+        meeting.status === "exported"
+          ? "この集会日の選択をすべて解除し、「エクスポート済み」の記録も消去します。よろしいですか？"
+          : "この集会日の選択をすべて解除します。よろしいですか？";
+      dlg.showModal();
+      el.querySelector<HTMLButtonElement>("#clear-cancel")!.onclick = () => dlg.close();
+      el.querySelector<HTMLButtonElement>("#clear-ok")!.onclick = async () => {
+        dlg.close();
+        // 即時確定: 割当・この集会由来の履歴/ペア履歴を消し、status は "none" に戻る
+        draft = {};
+        saveAssignments(ctx.data, meeting, draft);
+        await ctx.persist();
+        setDirty(false);
+        render();
+      };
     };
 
     el.querySelector<HTMLButtonElement>("#save")!.onclick = async () => {
