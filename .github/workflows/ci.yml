@@ -1,0 +1,121 @@
+name: CI
+
+# PR と main への push で、壊れた変更・個人情報の混入を止めるためのゲート。
+# リリースビルド（release.yml）はタグ契機なので、日常の検査はここに集約する。
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# 同じ PR に連続 push したとき、古い実行は打ち切る
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: フロントエンド（型チェック・テスト・ビルド）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      # package-lock.json どおりに入れる（CI で依存が勝手に上がらないように）
+      - name: install dependencies
+        run: npm ci
+        working-directory: app
+
+      - name: 型チェック
+        run: npx tsc --noEmit
+        working-directory: app
+
+      # 取り込みの自動判定はワークブックの改称で静かに壊れる箇所なので、
+      # ここが赤くなったら必ず原因を潰してからマージする
+      - name: テスト
+        run: npm test
+        working-directory: app
+
+      - name: ビルド
+        run: node scripts/build.mjs
+        working-directory: app
+
+  rust:
+    name: Rust（書式・clippy）
+    # 配布対象が Windows / macOS なので、Linux 固有の依存を持ち込まずに済む
+    # windows で検査する
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - name: 書式チェック
+        run: cargo fmt --check
+        working-directory: app/src-tauri
+
+      - name: clippy（警告をエラー扱い）
+        run: cargo clippy --all-targets -- -D warnings
+        working-directory: app/src-tauri
+
+  guard:
+    name: 個人情報・秘密情報の混入チェック
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # このリポジトリは public。会衆の成員名簿・実績バックアップ・
+      # 実データの data.json は絶対に追跡させない（.gitignore の裏取り）。
+      - name: 個人情報ファイルが追跡されていないこと
+        run: |
+          set -euo pipefail
+          PATTERN='(^|/)(成員.*\.csv|backup_.*\.json|data\.json)$'
+          HITS=$(git ls-files | grep -E "$PATTERN" || true)
+          if [ -n "$HITS" ]; then
+            echo "::error::個人情報を含む可能性のあるファイルが追跡されています:"
+            echo "$HITS"
+            exit 1
+          fi
+          echo "個人情報ファイルの追跡: なし"
+
+      - name: 秘密情報らしき文字列が含まれていないこと
+        run: |
+          set -euo pipefail
+          PATTERN='(BEGIN [A-Z ]*PRIVATE KEY|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36}|xox[abprs]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9]{32,})'
+          HITS=$(git grep -nIE "$PATTERN" -- . ':!*.lock' ':!*-lock.json' || true)
+          if [ -n "$HITS" ]; then
+            echo "::error::秘密情報らしき文字列を検出しました:"
+            echo "$HITS"
+            exit 1
+          fi
+          echo "秘密情報らしき文字列: 検出なし"
+
+  audit:
+    name: 依存の既知脆弱性（参考情報）
+    runs-on: ubuntu-latest
+    # 既存依存に未修正の脆弱性があり、修正には破壊的更新が要るものを含む。
+    # マージを止めずに PR 上で可視化することが目的なので、落ちても失敗扱いにしない。
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: npm audit
+        run: npm audit --audit-level=high
+        working-directory: app
