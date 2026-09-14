@@ -15,7 +15,7 @@
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-opener": "^2",
     "exceljs": "^4.4.0",
-    "pdfjs-dist": "^6.1.200"
+    "pdfjs-dist": "^6.3.289"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
