@@ -4,7 +4,7 @@
  * ヒューリスティックはこのファイルに集約してある。
  */
 import type { AppData, Meeting, Section } from "../models";
-import { detectType, typeDef, IGNORE_TYPE } from "../logic/programs";
+import { detectType, sectionFromHeading, typeDef, IGNORE_TYPE } from "../logic/programs";
 
 type PdfJsLib = typeof import("pdfjs-dist");
 
@@ -94,14 +94,6 @@ async function extractLines(data: Uint8Array): Promise<string[]> {
 /** 行頭の時刻＋中黒プレフィックス（例: "6:51 ● "）。除去して Excel と同じ本文にする */
 const TIME_PREFIX = /^\d{1,2}:\d{2}\s*[●○•・]?\s*/;
 
-/** セクション見出し行の判定（fill_s89.py の FIELD_SECTION_* と同じ区切り） */
-function sectionOf(text: string): Section | undefined {
-  if (/神の言葉の宝/.test(text)) return "treasures";
-  if (/野外奉仕に励む/.test(text)) return "ministry";
-  if (/クリスチャンとして生活する/.test(text)) return "living";
-  return undefined;
-}
-
 /**
  * 行から担当者名を取り出す。
  * - ラベル「〜：」がある行（生徒：/生徒/相手：/司会者：/祈り：）はその後ろ
@@ -187,7 +179,7 @@ export function parseHistoryLines(lines: string[], data: AppData): ExtractedEntr
     if (!currentDate) continue;
 
     // セクション見出し（時刻を含まない行のみ）
-    const sec = sectionOf(line);
+    const sec = sectionFromHeading(line, data.sectionAliases);
     if (sec !== undefined && !/\d{1,2}:\d{2}/.test(line)) {
       currentSection = sec;
       continue;

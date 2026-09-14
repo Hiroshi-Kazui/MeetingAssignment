@@ -56,7 +56,7 @@ export function importExcelView(el: HTMLElement, ctx: Ctx): void {
       if (files.length === 0) return;
       fileName = files[0].name;
       try {
-        drafts = await parseWorkbook(files[0].data, d.typeRules);
+        drafts = await parseWorkbook(files[0].data, d);
       } catch (e) {
         alert(`Excel の解析に失敗しました: ${e}`);
         return;

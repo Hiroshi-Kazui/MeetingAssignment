@@ -101,6 +101,18 @@ export interface TypeRule {
   typeId: string; // "__ignore__" = 無視
 }
 
+/**
+ * セクション見出しの別名（マスタ）。ワークブックはプログラム名だけを改称する
+ * ことがあるため（例: 「野外奉仕に励む」→「伝道を楽しもう」）、利用者が
+ * 設定画面から新しい呼び方を追加できるようにデータとして持つ（§4.3）。
+ */
+export interface SectionAlias {
+  id: string;
+  keyword: string; // 部分一致（正規表現ではなく単純一致。利用者入力を安全に扱う）
+  section: Exclude<Section, null>;
+  builtin: boolean; // 既定分。削除不可・migrate で補充
+}
+
 /** S6: 名寄せの記憶（PDF 上の表記 → 成員） */
 export interface NameAlias {
   raw: string; // 正規化前の表記
@@ -119,6 +131,7 @@ export interface AppData {
   pairHistory: PairEntry[];
   typeRules: TypeRule[];
   nameAliases: NameAlias[];
+  sectionAliases: SectionAlias[];
 }
 
 export const byId = <T extends { id: string }>(arr: T[], id: string): T | undefined =>
