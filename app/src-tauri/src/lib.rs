@@ -17,7 +17,9 @@ fn load_app_data() -> Result<Option<String>, String> {
     if !path.exists() {
         return Ok(None);
     }
-    fs::read_to_string(&path).map(Some).map_err(|e| e.to_string())
+    fs::read_to_string(&path)
+        .map(Some)
+        .map_err(|e| e.to_string())
 }
 
 /// data.json へ書き込む（IndexedDB との二重書き込みの片翼）。

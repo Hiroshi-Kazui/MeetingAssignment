@@ -4,14 +4,8 @@ import { byId } from "../models";
 import type { Ctx } from "../ui/router";
 import { candidatesFor, partnerCandidatesFor } from "../logic/priority";
 import { calcStatus, saveAssignments, sortedMeetings } from "../logic/meetings";
-import { setCircuit, totalSlotCount } from "../logic/programs";
+import { SECTION_TITLE, setCircuit, totalSlotCount } from "../logic/programs";
 import { CIRCUIT_BADGE, STATUS_BADGE, esc, fmtDate, fmtDateFull } from "../ui/format";
-
-const SECTION_TITLES: Record<string, string> = {
-  treasures: "神の言葉の宝",
-  ministry: "野外奉仕に励む",
-  living: "クリスチャンとして生活する",
-};
 
 export function assignView(el: HTMLElement, ctx: Ctx, params: URLSearchParams): void {
   const meetings = sortedMeetings(ctx.data);
@@ -96,7 +90,7 @@ export function assignView(el: HTMLElement, ctx: Ctx, params: URLSearchParams): 
     let lastSection: string | null | undefined;
     for (const p of meeting.programs) {
       if (p.section !== lastSection && p.section) {
-        listHtml += `<div class="section-label sec-${p.section}">${SECTION_TITLES[p.section]}</div>`;
+        listHtml += `<div class="section-label sec-${p.section}">${SECTION_TITLE[p.section]}</div>`;
       }
       lastSection = p.section;
 

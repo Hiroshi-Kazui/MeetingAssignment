@@ -4,7 +4,7 @@
  * ここに集約してあるので、実物で崩れた場合はこのファイルだけ直せばよい。
  */
 import type ExcelJS from "exceljs";
-import type { Meeting, MeetingSongs, Section, TypeRule } from "../models";
+import type { AppData, Meeting, MeetingSongs, Section } from "../models";
 import { newId } from "../models";
 import { loadExcelJS } from "./exceljs";
 import {
@@ -12,6 +12,7 @@ import {
   buildProgram,
   detectType,
   renumberPrograms,
+  sectionFromHeading,
   typeDef,
 } from "../logic/programs";
 
@@ -106,24 +107,18 @@ export async function extractWorkbookDates(data: Uint8Array): Promise<string[]> 
   return [...dates].sort();
 }
 
-function sectionHeading(cText: string): Section | undefined {
-  if (/神の言葉の宝/.test(cText)) return "treasures";
-  if (/野外奉仕に励む/.test(cText)) return "ministry";
-  if (/クリスチャンとして生活する/.test(cText)) return "living";
-  return undefined;
-}
-
 /**
  * ワークブック全体を解析し、集会日単位のドラフトへ分割する。
- * typeRules はレビュー修正の記憶（§4.3: 型シグネチャ単位で次回自動適用）。
+ * data から typeRules（レビュー修正の記憶。§4.3: 型シグネチャ単位で次回自動適用）と
+ * sectionAliases（セクション見出しの別名マスタ）を参照する。
  */
 export async function parseWorkbook(
-  data: Uint8Array,
-  typeRules: TypeRule[]
+  bytes: Uint8Array,
+  appData: AppData
 ): Promise<MeetingDraft[]> {
   const ExcelJS = await loadExcelJS();
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer);
+  await wb.xlsx.load(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
 
   const drafts: MeetingDraft[] = [];
   let fallbackYear = new Date().getFullYear();
@@ -159,7 +154,7 @@ export async function parseWorkbook(
 
       const cText = cellText(row.getCell(COL_C)).trim();
       if (!cText) continue;
-      const heading = sectionHeading(cText);
+      const heading = sectionFromHeading(cText, appData.sectionAliases);
       if (heading !== undefined) {
         currentSection = heading;
         continue;
@@ -175,7 +170,7 @@ export async function parseWorkbook(
       if (/閉会の(ことば|言葉)/.test(cText)) afterClosing = true;
       const eText = cellText(row.getCell(COL_E)).trim();
 
-      const det = detectType(cText, eText, typeRules, currentSection);
+      const det = detectType(cText, eText, appData, currentSection);
       current.rows.push({
         sheet: ws.name, row: r, cText, eText,
         typeId: det.typeId, omitPartner: det.omitPartner, auto: det.auto,
