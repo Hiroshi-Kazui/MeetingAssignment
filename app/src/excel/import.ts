@@ -170,7 +170,7 @@ export async function parseWorkbook(
       if (/閉会の(ことば|言葉)/.test(cText)) afterClosing = true;
       const eText = cellText(row.getCell(COL_E)).trim();
 
-      const det = detectType(cText, eText, appData.typeRules, currentSection);
+      const det = detectType(cText, eText, appData, currentSection);
       current.rows.push({
         sheet: ws.name, row: r, cText, eText,
         typeId: det.typeId, omitPartner: det.omitPartner, auto: det.auto,

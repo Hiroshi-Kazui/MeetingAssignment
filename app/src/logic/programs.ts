@@ -1,7 +1,7 @@
 /**
  * プログラム型（TYPE_DEFS）・自動検出・巡回訪問週の切替（要件定義 §4.3 / §11）
  */
-import type { Meeting, Program, Section, SectionAlias, Slot, SlotKind, TypeRule } from "../models";
+import type { AppData, Meeting, Program, Section, SectionAlias, Slot, SlotKind, TypeKeyword } from "../models";
 
 export interface SlotTemplate {
   roleId: string;
@@ -37,21 +37,28 @@ export const RID = {
 export const IGNORE_TYPE = "__ignore__";
 
 /**
- * プログラム名の別名テーブル。ワークブックは構造を変えずに名前だけを改称する
- * ことがあるため（例:「会衆の必要」→「会衆で考えたいこと」）、名前に依存する
- * 判定はここに集約する。改称が起きたらこのテーブルだけを直せばよい。
- * セクション見出しの別名は利用者が追加できるようデータ側（AppData.sectionAliases）に持つ。
+ * プログラム名の「当て先」。ワークブックは項目名だけを改称することがあるため
+ * （例:「会衆の必要」→「会衆で考えたいこと」）、名前そのものは AppData.typeKeywords
+ * にデータとして持ち、利用者が設定画面から追加できるようにしている。
+ * ここにあるのは当て先の一覧とその表示名だけ。
  */
-const NAME_ALIAS = {
-  localNeeds: /会衆の?必要|会衆で考えたいこと/,
-  cbs: /会衆の?聖書研究/,
-  serviceTalk: /奉仕の話/,
-  bibleReading: /聖書朗読/,
-  gems: /宝石/,
-  openingWords: /開会のことば|開会の言葉/,
-  closingWords: /閉会のことば|閉会の言葉/,
-  prayer: /祈り/,
+export const KEYWORD_TARGETS = {
+  local_needs: "会衆で考えたいこと（part7）",
+  cbs: "会衆聖書研究（part8）",
+  service_talk: "奉仕の話（巡回監督）",
+  bible_reading: "聖書朗読（part3）",
+  gems: "宝石を探し出す（part2）",
+  opening_words: "開会の言葉",
+  closing_words: "閉会の言葉",
+  prayer: "祈り",
 } as const;
+
+export type KeywordTarget = keyof typeof KEYWORD_TARGETS;
+
+/** その語が当て先のいずれかの呼び方に一致するか（部分一致） */
+function hits(text: string, target: KeywordTarget, keywords: TypeKeyword[]): boolean {
+  return keywords.some((k) => k.target === target && k.keyword && text.includes(k.keyword));
+}
 
 export const TYPE_DEFS: TypeDef[] = [
   { id: "chairman", label: "司会", section: null,
@@ -107,6 +114,17 @@ const LEGACY_TYPE_DEFS: TypeDef[] = [
     slots: [{ roleId: RID.living, kind: "single", label: "討議" }] },
 ];
 
+/**
+ * セクションの短い区分名（設定画面の一覧用）。表示名（SECTION_TITLE）は
+ * ワークブックの呼び方そのものなので、呼び方の一覧に並べると同じ語が
+ * 二重に出て紛らわしい。区分は part 番号で示して呼び方と混ざらないようにする。
+ */
+export const SECTION_GROUP: Record<Exclude<Section, null>, string> = {
+  treasures: "宝（part1-3）",
+  ministry: "伝道（part4-6）",
+  living: "生活（part7-8）",
+};
+
 /** セクションの表示名（割当画面の見出し・設定画面の選択肢で共用） */
 export const SECTION_TITLE: Record<Exclude<Section, null>, string> = {
   treasures: "神の言葉の宝",
@@ -157,25 +175,25 @@ export interface DetectResult {
 
 /**
  * 1行分の自動検出（§4.3: C列キーワード＋part番号＋E列ラベルの併用）。
- * typeRules（レビュー修正の記憶）が最優先。
+ * data.typeRules（レビュー修正の記憶）が最優先。
  */
 export function detectType(
   cText: string,
   eLabel: string,
-  typeRules: TypeRule[],
+  data: AppData,
   section: Section = null
 ): DetectResult {
   const c = cText.trim();
   const sig = normalizeSignature(c);
 
-  const rule = typeRules.find((r) => r.signature === sig && sig !== "");
+  const rule = data.typeRules.find((r) => r.signature === sig && sig !== "");
   if (rule) {
     const typeId = normalizeRuleType(rule.typeId, c, section);
     const def = typeDef(typeId);
     return { typeId, omitPartner: isTalkText(c) && !!def?.allowOmitPartner, auto: true };
   }
 
-  const found = detectByKeywords(c, eLabel, section);
+  const found = detectByKeywords(c, eLabel, section, data.typeKeywords);
   if (found) return found;
   return { typeId: IGNORE_TYPE, omitPartner: false, auto: false };
 }
@@ -193,19 +211,24 @@ function normalizeRuleType(typeId: string, c: string, section: Section): string 
   return typeId;
 }
 
-function detectByKeywords(c: string, eLabel: string, section: Section): DetectResult | null {
+function detectByKeywords(
+  c: string,
+  eLabel: string,
+  section: Section,
+  kw: TypeKeyword[]
+): DetectResult | null {
   const r = (typeId: string, omitPartner = false): DetectResult => ({ typeId, omitPartner, auto: true });
 
-  if (section === "living" && NAME_ALIAS.serviceTalk.test(c)) return r("service_talk");
-  if (NAME_ALIAS.cbs.test(c)) return r("cbs");
-  if (NAME_ALIAS.bibleReading.test(c)) return r("bible_reading");
+  if (section === "living" && hits(c, "service_talk", kw)) return r("service_talk");
+  if (hits(c, "cbs", kw)) return r("cbs");
+  if (hits(c, "bible_reading", kw)) return r("bible_reading");
   // 祈りは「開会/閉会の言葉」判定より優先。開会の言葉行に E列「祈り：」が付く形式
   // （開会の祈り）を拾うため。C列に「開会」を含めば開会、それ以外（歌番号など）は閉会。
-  if (NAME_ALIAS.prayer.test(c) || NAME_ALIAS.prayer.test(eLabel)) {
+  if (hits(c, "prayer", kw) || hits(eLabel, "prayer", kw)) {
     return r(/開会/.test(c) ? "prayer_open" : "prayer_close");
   }
-  if (NAME_ALIAS.openingWords.test(c)) return r("chairman");
-  if (NAME_ALIAS.closingWords.test(c)) return r(IGNORE_TYPE); // 司会者が続けて担当（割当なし）
+  if (hits(c, "opening_words", kw)) return r("chairman");
+  if (hits(c, "closing_words", kw)) return r(IGNORE_TYPE); // 司会者が続けて担当（割当なし）
 
   const numMatch = c.match(/^\s*([0-9０-９]+)[.．]/);
   if (numMatch) {
@@ -215,18 +238,18 @@ function detectByKeywords(c: string, eLabel: string, section: Section): DetectRe
     if (n === 3) return r("bible_reading");
     if (section === "ministry") return r(isTalkText(c) ? "ministry_talk" : "ministry_demo");
     if (section === "living") {
-      if (NAME_ALIAS.localNeeds.test(c)) return r("local_needs");
-      if (NAME_ALIAS.cbs.test(c)) return r("cbs");
+      if (hits(c, "local_needs", kw)) return r("local_needs");
+      if (hits(c, "cbs", kw)) return r("cbs");
       return r("living_discussion");
     }
   }
-  if (NAME_ALIAS.gems.test(c)) return r("gems");
+  if (hits(c, "gems", kw)) return r("gems");
 
   // E列ラベルによる補完（§11: ラベルは不完全）
   if (/司会者\/朗読者/.test(eLabel)) return r("cbs");
   if (section === "ministry" && /生徒\/相手/.test(eLabel)) return r("ministry_demo");
   if (section === "ministry" && /生徒/.test(eLabel)) return r(isTalkText(c) ? "ministry_talk" : "ministry_demo");
-  if (section === "living" && NAME_ALIAS.localNeeds.test(c)) return r("local_needs");
+  if (section === "living" && hits(c, "local_needs", kw)) return r("local_needs");
   if (section === "living" && /討議|話/.test(c)) return r("living_discussion");
 
   // 歌の行は無視。実データでは C 列が「歌番号（裸の整数）」のみのことが多く、

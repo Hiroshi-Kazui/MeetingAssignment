@@ -189,7 +189,7 @@ export function parseHistoryLines(lines: string[], data: AppData): ExtractedEntr
     const core = line.replace(TIME_PREFIX, "").trim();
     if (!core) continue;
 
-    let det = detectType(core, core, data.typeRules, currentSection);
+    let det = detectType(core, core, data, currentSection);
     if (det.typeId === IGNORE_TYPE || !det.auto) continue;
 
     // その日最初の祈りは開会、以降は閉会（役割 r_prayer は同一）

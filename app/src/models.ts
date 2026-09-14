@@ -113,6 +113,18 @@ export interface SectionAlias {
   builtin: boolean; // 既定分。削除不可・migrate で補充
 }
 
+/**
+ * プログラム名の別名（マスタ）。「会衆の必要」→「会衆で考えたいこと」のように
+ * 項目名だけが改称されることがあるため、利用者が新しい呼び方を追加できる。
+ * target は判定の当て先（logic/programs.ts の KEYWORD_TARGETS のキー）。
+ */
+export interface TypeKeyword {
+  id: string;
+  keyword: string; // 部分一致
+  target: string;
+  builtin: boolean; // 既定分。削除不可・migrate で補充
+}
+
 /** S6: 名寄せの記憶（PDF 上の表記 → 成員） */
 export interface NameAlias {
   raw: string; // 正規化前の表記
@@ -132,6 +144,7 @@ export interface AppData {
   typeRules: TypeRule[];
   nameAliases: NameAlias[];
   sectionAliases: SectionAlias[];
+  typeKeywords: TypeKeyword[];
 }
 
 export const byId = <T extends { id: string }>(arr: T[], id: string): T | undefined =>

@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { SectionAlias } from "../models";
+import { defaultData } from "../state";
 import { detectType, sectionFromHeading } from "./programs";
 
 const ALIASES: SectionAlias[] = [
@@ -48,7 +49,7 @@ describe("sectionFromHeading", () => {
 
 describe("detectType", () => {
   const d = (c: string, e = "", section: Parameters<typeof detectType>[3] = null) =>
-    detectType(c, e, [], section).typeId;
+    detectType(c, e, defaultData(), section).typeId;
 
   it("会衆の必要は新旧どちらの名前でも local_needs になる", () => {
     expect(d("7. 会衆の必要 (15分)", "", "living")).toBe("local_needs");
@@ -77,7 +78,33 @@ describe("detectType", () => {
   });
 
   it("判定できない行は未分類として返す", () => {
-    const r = detectType("周南市徳山会衆", "", [], null);
+    const r = detectType("周南市徳山会衆", "", defaultData(), null);
     expect(r.auto).toBe(false);
+  });
+});
+
+describe("プログラム名の呼び方マスタ（typeKeywords）", () => {
+  it("呼び方を足せば、未知の改称でも同じ項目に落ちる", () => {
+    const data = defaultData();
+    // 将来「会衆で考えたいこと」がさらに改称された場合を模す
+    expect(detectType("7. 会衆で話し合うこと (15分)", "", data, "living").typeId).toBe(
+      "living_discussion"
+    );
+
+    data.typeKeywords.push({
+      id: "tk_user",
+      keyword: "会衆で話し合うこと",
+      target: "local_needs",
+      builtin: false,
+    });
+    expect(detectType("7. 会衆で話し合うこと (15分)", "", data, "living").typeId).toBe("local_needs");
+  });
+
+  it("既定の呼び方を消すと判定できなくなる（マスタが判定を駆動している証跡）", () => {
+    const data = defaultData();
+    data.typeKeywords = data.typeKeywords.filter((k) => k.target !== "local_needs");
+    expect(detectType("7. 会衆で考えたいこと (15分)", "", data, "living").typeId).toBe(
+      "living_discussion"
+    );
   });
 });

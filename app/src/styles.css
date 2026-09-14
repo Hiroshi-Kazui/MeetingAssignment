@@ -293,3 +293,27 @@ code.path {
   background: #eef1f5; padding: 2px 8px; border-radius: 4px;
   font-size: 13px; font-family: Consolas, monospace;
 }
+
+/* 取り込みの「呼び方」一覧（設定画面）。1行に複数の呼び方を並べる */
+.alias-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 6px 2px 0;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 13px;
+}
+.alias-chip.is-builtin { background: #eceff3; color: #5b6572; }
+.alias-del {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.alias-del:hover { color: #b42318; }

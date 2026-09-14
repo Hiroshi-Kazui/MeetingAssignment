@@ -2,7 +2,7 @@
  * アプリ状態の読み込み・保存（要件定義 §3: IndexedDB + data.json 二重書き込み）
  * 初期データとして既定ロール一式を投入（§7 S3）。
  */
-import type { AppData, SectionAlias } from "./models";
+import type { AppData, SectionAlias, TypeKeyword } from "./models";
 import { idbLoad, idbSave } from "./db";
 import { loadDataJson, saveDataJson } from "./platform";
 import { memberHasRole } from "./logic/priority";
@@ -17,6 +17,27 @@ const BUILTIN_SECTION_ALIASES: SectionAlias[] = [
   { id: "sa_ministry_old", keyword: "野外奉仕に励む", section: "ministry", builtin: true },
   { id: "sa_ministry_new", keyword: "伝道を楽しもう", section: "ministry", builtin: true },
   { id: "sa_living", keyword: "クリスチャンとして生活する", section: "living", builtin: true },
+];
+
+/**
+ * 既定のプログラム名の呼び方（§4.3）。項目名だけの改称に追従するため
+ * 利用者が設定画面から追加できる。builtin は削除不可で migrate が補充する。
+ * 「会衆の必要」は 2026 年に「会衆で考えたいこと」へ改称された。
+ */
+const BUILTIN_TYPE_KEYWORDS: TypeKeyword[] = [
+  { id: "tk_ln_old", keyword: "会衆の必要", target: "local_needs", builtin: true },
+  { id: "tk_ln_old2", keyword: "会衆必要", target: "local_needs", builtin: true },
+  { id: "tk_ln_new", keyword: "会衆で考えたいこと", target: "local_needs", builtin: true },
+  { id: "tk_cbs", keyword: "会衆の聖書研究", target: "cbs", builtin: true },
+  { id: "tk_cbs2", keyword: "会衆聖書研究", target: "cbs", builtin: true },
+  { id: "tk_service", keyword: "奉仕の話", target: "service_talk", builtin: true },
+  { id: "tk_reading", keyword: "聖書朗読", target: "bible_reading", builtin: true },
+  { id: "tk_gems", keyword: "宝石", target: "gems", builtin: true },
+  { id: "tk_open", keyword: "開会の言葉", target: "opening_words", builtin: true },
+  { id: "tk_open2", keyword: "開会のことば", target: "opening_words", builtin: true },
+  { id: "tk_close", keyword: "閉会の言葉", target: "closing_words", builtin: true },
+  { id: "tk_close2", keyword: "閉会のことば", target: "closing_words", builtin: true },
+  { id: "tk_prayer", keyword: "祈り", target: "prayer", builtin: true },
 ];
 
 /** 既定ロール・ロールグループ・割当関連グループ（§4.2 / §11。S3・S4 で変更可） */
@@ -55,6 +76,7 @@ export function defaultData(): AppData {
     typeRules: [],
     nameAliases: [],
     sectionAliases: BUILTIN_SECTION_ALIASES.map((a) => ({ ...a })),
+    typeKeywords: BUILTIN_TYPE_KEYWORDS.map((k) => ({ ...k })),
   };
 }
 
@@ -148,6 +170,11 @@ export function migrate(d: AppData): AppData {
   if (!Array.isArray(merged.sectionAliases)) merged.sectionAliases = [];
   for (const b of BUILTIN_SECTION_ALIASES) {
     if (!merged.sectionAliases.some((a) => a.id === b.id)) merged.sectionAliases.push({ ...b });
+  }
+  // プログラム名の呼び方も同様に既定分を補う。冪等。
+  if (!Array.isArray(merged.typeKeywords)) merged.typeKeywords = [];
+  for (const b of BUILTIN_TYPE_KEYWORDS) {
+    if (!merged.typeKeywords.some((k) => k.id === b.id)) merged.typeKeywords.push({ ...b });
   }
   // スロットの表示名は取り込み時に各集会へ焼き付くため、型定義側を改称しても
   // 既存データは旧名のまま残る。型ラベルから再同期する（roleId は触らない）。冪等。
