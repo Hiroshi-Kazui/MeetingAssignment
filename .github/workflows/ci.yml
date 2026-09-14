@@ -104,11 +104,12 @@ jobs:
           echo "秘密情報らしき文字列: 検出なし"
 
   audit:
-    name: 依存の既知脆弱性（参考情報）
+    name: 依存の既知脆弱性（high 以上）
     runs-on: ubuntu-latest
-    # 既存依存に未修正の脆弱性があり、修正には破壊的更新が要るものを含む。
-    # マージを止めずに PR 上で可視化することが目的なので、落ちても失敗扱いにしない。
-    continue-on-error: true
+    # high 以上は解消済みなのでゲートとして機能させる。moderate は
+    # exceljs → uuid が残るが、修正には exceljs の破壊的ダウングレードが
+    # 要り、かつ該当する呼び出し方（buf 引数付き）を本アプリはしないため
+    # 閾値を high に置いている。
     steps:
       - uses: actions/checkout@v4
 
