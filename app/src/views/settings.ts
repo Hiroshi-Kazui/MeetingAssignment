@@ -1,10 +1,18 @@
 /** S9 バックアップ・設定 — 要件定義 §3 / §7 S9 */
-import type { AppData, SectionAlias } from "../models";
+import type { SectionAlias } from "../models";
 import { newId } from "../models";
 import type { Ctx } from "../ui/router";
 import { isTauri, pickAndReadFiles, pickAndWriteFile } from "../platform";
 import { KEYWORD_TARGETS, SECTION_GROUP } from "../logic/programs";
-import { migrate } from "../state";
+import type { AnyBackup } from "../backup";
+import {
+  applyBackup,
+  backupKind,
+  buildAssignmentsBackup,
+  buildFullBackup,
+  describeBackup,
+  parseBackup,
+} from "../backup";
 import { esc, fmtDateTime } from "../ui/format";
 
 type SectionId = SectionAlias["section"];
@@ -101,14 +109,16 @@ export function settingsView(el: HTMLElement, ctx: Ctx): void {
 
       <h2>手動バックアップ</h2>
       <div class="panel">
-        <p style="margin-top:0; font-size:14px">成員・ロール・履歴・割り当てなど、すべてのデータを1つの JSON ファイルに書き出します。</p>
-        <button class="btn btn-primary" id="backup">バックアップを書き出す</button>
+        <p style="margin-top:0; font-size:14px"><strong>全データ</strong>: 成員・ロール・呼び方などのマスタも含め、すべてを1つの JSON ファイルに書き出します。</p>
+        <button class="btn btn-primary" id="backup">全データを書き出す</button>
+        <p style="font-size:14px"><strong>割当のみ</strong>: 割当スケジュールと割当データ（集会・履歴・ペア履歴）だけを書き出します。マスタは含みません。</p>
+        <button class="btn" id="backup-assign">割当のみ書き出す</button>
         <span id="backup-done" style="margin-left:10px; font-size:14px; color:#1a7f37; display:none">✓ 書き出しました</span>
       </div>
       <h2>バックアップから復元</h2>
       <div class="panel">
-        <p style="margin-top:0; font-size:14px">書き出した JSON ファイルを選んで、データ全体を置き換えます。</p>
-        <div class="notice">⚠ 復元すると、<strong>現在のデータ（${stats}）はすべてバックアップの内容に置き換わります</strong>。この操作は取り消せません。</div>
+        <p style="margin-top:0; font-size:14px">書き出した JSON ファイルを選ぶと、種別（全データ / 割当のみ）を自動で判別して復元します。</p>
+        <div class="notice">⚠ 現在のデータ（${stats}）のうち、<strong>全データのバックアップならマスタを含めてすべて</strong>、<strong>割当のみのバックアップなら割当だけ</strong>が置き換わります。この操作は取り消せません。</div>
         <button class="btn btn-danger" id="restore">バックアップファイルを選んで復元…</button>
       </div>`;
     bind();
@@ -171,51 +181,46 @@ export function settingsView(el: HTMLElement, ctx: Ctx): void {
       };
     });
 
-    (el.querySelector("#backup") as HTMLButtonElement).onclick = async () => {
+    /** 種別ごとの書き出し。どちらも同じ完了表示を使う */
+    const writeBackup = async (kind: "full" | "assignments"): Promise<void> => {
       const iso = new Date().toISOString().slice(0, 10);
+      const full = kind === "full";
       await pickAndWriteFile(
-        { title: "バックアップの保存先", suggestedName: `backup_${iso}.json`, extensions: ["json"] },
-        JSON.stringify(d, null, 2)
+        {
+          title: full ? "全データのバックアップ保存先" : "割当のみのバックアップ保存先",
+          suggestedName: full ? `backup_${iso}.json` : `backup_assign_${iso}.json`,
+          extensions: ["json"],
+        },
+        JSON.stringify(full ? buildFullBackup(d) : buildAssignmentsBackup(d), null, 2)
       );
       (el.querySelector("#backup-done") as HTMLElement).style.display = "";
     };
 
+    (el.querySelector("#backup") as HTMLButtonElement).onclick = () => writeBackup("full");
+    (el.querySelector("#backup-assign") as HTMLButtonElement).onclick = () => writeBackup("assignments");
+
     (el.querySelector("#restore") as HTMLButtonElement).onclick = async () => {
       const files = await pickAndReadFiles({ title: "バックアップ JSON を選択", extensions: ["json"] });
       if (files.length === 0) return;
-      let parsed: AppData;
+      let parsed: AnyBackup;
       try {
-        parsed = JSON.parse(new TextDecoder().decode(files[0].data)) as AppData;
-        // migrate() は meetings / history を走査するため、配列であることまで確かめる
-        // （壊れたバックアップで復元ボタンが無反応になるのを防ぐ）
-        if (
-          parsed.version !== 1 ||
-          !Array.isArray(parsed.members) ||
-          !Array.isArray(parsed.meetings) ||
-          !Array.isArray(parsed.history)
-        ) {
-          throw new Error("バックアップ形式が不正です");
-        }
+        parsed = parseBackup(new TextDecoder().decode(files[0].data));
       } catch (e) {
         alert(`復元できません: ${e}`);
         return;
       }
-      if (
-        !confirm(
-          `選択したファイル: ${esc(files[0].name)}\n\n現在のデータ（${d.members.length}名・集会 ${d.meetings.length}回・履歴 ${d.history.length}件）は、このバックアップの内容にすべて置き換わります。この操作は取り消せません。\n\n復元しますか？`
-        )
-      )
-        return;
+      // 種別によって置き換わる範囲が違うため、確認ダイアログにも種別を出す
+      if (!confirm(`選択したファイル: ${esc(files[0].name)}\n\n${describeBackup(d, parsed)}`)) return;
       // 既定値の補充・スキーマ移行を通してから反映する（機能追加前の古い
       // バックアップでも既定の呼び方などが欠けないようにするため）
       try {
-        Object.assign(d, migrate(parsed));
+        Object.assign(d, applyBackup(d, parsed));
       } catch (e) {
         alert(`復元できません（データの移行に失敗しました）: ${e}`);
         return;
       }
       await ctx.persist();
-      alert("復元しました。");
+      alert(backupKind(parsed) === "assignments" ? "割当を復元しました。" : "復元しました。");
       ctx.refresh();
     };
   }
