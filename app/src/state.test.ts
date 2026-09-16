@@ -66,6 +66,46 @@ describe("migrate", () => {
     expect(slot.roleId).toBe("r_local_needs");
   });
 
+  // 改称対応前に取り込んだ集会は part7 が討議のまま焼き付いており、
+  // 「統治体の話」トグルが出ない（allowGbTalk は local_needs だけ）。
+  it("改称後の名前で討議になっている part7 を local_needs へ付け替える", () => {
+    const d = legacyData();
+    const p = d.meetings[0].programs[0];
+    p.typeId = "living_discussion";
+    p.name = "7. 会衆で考えたいこと (15分)";
+    p.slots = [{ key: "p0-s0", roleId: "r_living", kind: "single", label: "討議" }];
+    d.meetings[0].assignments = { "p0-s0": "mb_1" };
+
+    const m = migrate(d);
+    const prog = m.meetings[0].programs[0];
+    expect(prog.typeId).toBe("local_needs");
+    expect(prog.slots[0].roleId).toBe("r_local_needs");
+    expect(prog.slots[0].label).toBe("会衆で考えたいこと");
+    // 割当済みの成員はスロットキーが変わらないので残る
+    expect(m.meetings[0].assignments["p0-s0"]).toBe("mb_1");
+  });
+
+  it("旧名のままの討議（呼び方に一致しない）は付け替えない", () => {
+    const d = legacyData();
+    const p = d.meetings[0].programs[0];
+    p.typeId = "living_discussion";
+    p.name = "7. どうすれば親切になれますか (15分)";
+    expect(migrate(d).meetings[0].programs[0].typeId).toBe("living_discussion");
+  });
+
+  // 取り込みレビューでの手動修正の記憶はキーワード判定より優先されるため、
+  // 誤った記憶が残っていると再取り込みしても直らない。
+  it("local_needs の呼び方を別型に覚えた typeRules を捨てる", () => {
+    const d = legacyData();
+    d.typeRules = [
+      { signature: "会衆で考えたいこと", typeId: "living_discussion" },
+      { signature: "会衆の必要", typeId: "local_needs" },
+      { signature: "聖書朗読", typeId: "bible_reading" },
+    ];
+    const m = migrate(d);
+    expect(m.typeRules.map((r) => r.signature)).toEqual(["会衆の必要", "聖書朗読"]);
+  });
+
   it("利用者が追加した別名を保持し、欠けた既定分だけを補充する", () => {
     const m = migrate(legacyData());
     m.sectionAliases.push({ id: "sa_user", keyword: "宣教を楽しもう", section: "ministry", builtin: false });

@@ -56,7 +56,7 @@ export const KEYWORD_TARGETS = {
 export type KeywordTarget = keyof typeof KEYWORD_TARGETS;
 
 /** その語が当て先のいずれかの呼び方に一致するか（部分一致） */
-function hits(text: string, target: KeywordTarget, keywords: TypeKeyword[]): boolean {
+export function matchesKeyword(text: string, target: KeywordTarget, keywords: TypeKeyword[]): boolean {
   return keywords.some((k) => k.target === target && k.keyword && text.includes(k.keyword));
 }
 
@@ -219,16 +219,16 @@ function detectByKeywords(
 ): DetectResult | null {
   const r = (typeId: string, omitPartner = false): DetectResult => ({ typeId, omitPartner, auto: true });
 
-  if (section === "living" && hits(c, "service_talk", kw)) return r("service_talk");
-  if (hits(c, "cbs", kw)) return r("cbs");
-  if (hits(c, "bible_reading", kw)) return r("bible_reading");
+  if (section === "living" && matchesKeyword(c, "service_talk", kw)) return r("service_talk");
+  if (matchesKeyword(c, "cbs", kw)) return r("cbs");
+  if (matchesKeyword(c, "bible_reading", kw)) return r("bible_reading");
   // 祈りは「開会/閉会の言葉」判定より優先。開会の言葉行に E列「祈り：」が付く形式
   // （開会の祈り）を拾うため。C列に「開会」を含めば開会、それ以外（歌番号など）は閉会。
-  if (hits(c, "prayer", kw) || hits(eLabel, "prayer", kw)) {
+  if (matchesKeyword(c, "prayer", kw) || matchesKeyword(eLabel, "prayer", kw)) {
     return r(/開会/.test(c) ? "prayer_open" : "prayer_close");
   }
-  if (hits(c, "opening_words", kw)) return r("chairman");
-  if (hits(c, "closing_words", kw)) return r(IGNORE_TYPE); // 司会者が続けて担当（割当なし）
+  if (matchesKeyword(c, "opening_words", kw)) return r("chairman");
+  if (matchesKeyword(c, "closing_words", kw)) return r(IGNORE_TYPE); // 司会者が続けて担当（割当なし）
 
   const numMatch = c.match(/^\s*([0-9０-９]+)[.．]/);
   if (numMatch) {
@@ -238,18 +238,18 @@ function detectByKeywords(
     if (n === 3) return r("bible_reading");
     if (section === "ministry") return r(isTalkText(c) ? "ministry_talk" : "ministry_demo");
     if (section === "living") {
-      if (hits(c, "local_needs", kw)) return r("local_needs");
-      if (hits(c, "cbs", kw)) return r("cbs");
+      if (matchesKeyword(c, "local_needs", kw)) return r("local_needs");
+      if (matchesKeyword(c, "cbs", kw)) return r("cbs");
       return r("living_discussion");
     }
   }
-  if (hits(c, "gems", kw)) return r("gems");
+  if (matchesKeyword(c, "gems", kw)) return r("gems");
 
   // E列ラベルによる補完（§11: ラベルは不完全）
   if (/司会者\/朗読者/.test(eLabel)) return r("cbs");
   if (section === "ministry" && /生徒\/相手/.test(eLabel)) return r("ministry_demo");
   if (section === "ministry" && /生徒/.test(eLabel)) return r(isTalkText(c) ? "ministry_talk" : "ministry_demo");
-  if (section === "living" && hits(c, "local_needs", kw)) return r("local_needs");
+  if (section === "living" && matchesKeyword(c, "local_needs", kw)) return r("local_needs");
   if (section === "living" && /討議|話/.test(c)) return r("living_discussion");
 
   // 歌の行は無視。実データでは C 列が「歌番号（裸の整数）」のみのことが多く、

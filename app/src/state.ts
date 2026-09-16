@@ -6,7 +6,7 @@ import type { AppData, SectionAlias, TypeKeyword } from "./models";
 import { idbLoad, idbSave } from "./db";
 import { loadDataJson, saveDataJson } from "./platform";
 import { memberHasRole } from "./logic/priority";
-import { typeDef } from "./logic/programs";
+import { matchesKeyword, typeDef } from "./logic/programs";
 
 /**
  * 既定のセクション見出し別名（§4.3）。ワークブックの改称に追従するため
@@ -176,6 +176,28 @@ export function migrate(d: AppData): AppData {
   for (const b of BUILTIN_TYPE_KEYWORDS) {
     if (!merged.typeKeywords.some((k) => k.id === b.id)) merged.typeKeywords.push({ ...b });
   }
+  // 「会衆の必要」→「会衆で考えたいこと」の改称に対応する前（〜0.1.x）に取り込んだ
+  // 集会は part7 が討議（living_discussion）のまま焼き付いている。呼び方マスタに
+  // 一致するものを local_needs へ付け替え、ロールも専用ロールへ寄せる。
+  // 割当済みの成員はスロットキーが変わらないためそのまま残る。冪等。
+  for (const mt of merged.meetings) {
+    for (const p of mt.programs) {
+      if (p.typeId !== "living_discussion") continue;
+      if (!matchesKeyword(p.name, "local_needs", merged.typeKeywords)) continue;
+      p.typeId = "local_needs";
+      for (const s of p.slots) {
+        if (s.roleId === "r_living") s.roleId = "r_local_needs";
+      }
+    }
+  }
+  // 取り込みレビューでの手動修正の記憶（typeRules）が同じ理由で誤った型を
+  // 覚えていると、再取り込みしてもキーワード判定より優先されて直らない。
+  // local_needs の呼び方に一致するのに別の型を指す記憶は捨て、自動判定に戻す。冪等。
+  if (!Array.isArray(merged.typeRules)) merged.typeRules = [];
+  merged.typeRules = merged.typeRules.filter(
+    (r) => r.typeId === "local_needs" || !matchesKeyword(r.signature, "local_needs", merged.typeKeywords)
+  );
+
   // スロットの表示名は取り込み時に各集会へ焼き付くため、型定義側を改称しても
   // 既存データは旧名のまま残る。型ラベルから再同期する（roleId は触らない）。冪等。
   for (const mt of merged.meetings) {
